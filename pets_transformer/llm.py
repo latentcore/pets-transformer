@@ -59,7 +59,7 @@ def _load_dotenv() -> None:
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-def _gemini(prompt: str, model: str = "gemini-2.5-flash", timeout: int = 60) -> str:
+def _gemini(prompt: str, model: str = "gemini-3.8-flash", timeout: int = 60) -> str:
     _load_dotenv()
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
@@ -89,7 +89,7 @@ def second_opinion(backend: str, table: str, n_rows: int, others: list, person_t
                            kind="people (one row per person)" if person_table else "events or records (one row per event)",
                            column=column, n_unique=n_unique, samples=" | ".join(str(s)[:40] for s in samples[:12]), guess=guess)
     try:
-        raw = _ollama(prompt, model or "qwen3:8b") if backend == "ollama" else _gemini(prompt, model or "gemini-2.5-flash")
+        raw = _ollama(prompt, model or "qwen3:8b") if backend == "ollama" else _gemini(prompt, model or "gemini-3.8-flash")
         m = re.search(r"\{.*\}", raw, re.S)
         ans = json.loads(m.group() if m else raw)
     except Exception as e:  # noqa: BLE001
