@@ -47,11 +47,12 @@ def build(releases: list[tuple[str, str, str]], out: Path | None = None) -> Path
         shutil.copy(u_red / "spans.jsonl", out / "unseen_c16_spans.jsonl")
         shutil.copy(u_red / "export_2025_q4.csv", out / "unseen_export_2025_q4_redacted.csv")
     # 3. chosen releases
+    for ds in {r[0] for r in releases}:
+        if (out / ds).exists():
+            shutil.rmtree(out / ds)
     for ds, scen, variant in releases:
         src = outputs_dir() / ds / scen / variant
         dst = out / ds / scen
-        if dst.exists():
-            shutil.rmtree(dst)
         dst.mkdir(parents=True)
         for f in src.glob("*.csv"):
             shutil.copy(f, dst / f.name)
