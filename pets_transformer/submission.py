@@ -21,8 +21,8 @@ from . import redact as Rd
 from .config import PROJECT, outputs_dir, package_root
 
 
-def build(releases: dict[str, tuple[str, str]], out: Path | None = None) -> Path:
-    """releases: {dataset: (scenario, variant)} chosen releases to include."""
+def build(releases: list[tuple[str, str, str]], out: Path | None = None) -> Path:
+    """releases: [(dataset, scenario, variant), ...] chosen releases to include (one folder per dataset/scenario)."""
     root = package_root()
     out = out or (PROJECT / "pets_submission")
     out.mkdir(exist_ok=True)
@@ -47,12 +47,12 @@ def build(releases: dict[str, tuple[str, str]], out: Path | None = None) -> Path
         shutil.copy(u_red / "spans.jsonl", out / "unseen_c16_spans.jsonl")
         shutil.copy(u_red / "export_2025_q4.csv", out / "unseen_export_2025_q4_redacted.csv")
     # 3. chosen releases
-    for ds, (scen, variant) in releases.items():
+    for ds, scen, variant in releases:
         src = outputs_dir() / ds / scen / variant
-        dst = out / ds
+        dst = out / ds / scen
         if dst.exists():
             shutil.rmtree(dst)
-        dst.mkdir()
+        dst.mkdir(parents=True)
         for f in src.glob("*.csv"):
             shutil.copy(f, dst / f.name)
         for f in ("decisions.json", "scorecard.json", "scorecard.html", "summary.json"):

@@ -123,10 +123,7 @@ def cmd_detect(a):
 
 def cmd_submission(a):
     from pets_transformer import submission as Sb
-    rel = {}
-    for item in a.release:
-        ds, scen, var = item.split(":")
-        rel[ds] = (scen, var)
+    rel = [tuple(item.split(":")) for item in a.release]
     out = Sb.build(rel)
     print(f"wrote {out}")
 
