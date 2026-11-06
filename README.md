@@ -71,8 +71,9 @@ Detector (`pets-eval detect`, privacy-role macro-F1 / recall of sensitive column
 | + local LLM second opinion (qwen3:8b via Ollama) on the 31 columns below confidence 0.6, held-out | 0.75 (+0.002) | 0.94 | 0.76 |
 
 The LLM pass helps little here: the rules already cover the formatted identifiers, and the remaining errors are
-convention questions (is a transaction amount a quasi-identifier?) that a model cannot settle either. It is kept as an
-explainable option: the rule evidence stays next to the model's reason.
+convention questions (is a transaction amount a quasi-identifier?) that a model cannot settle either. Letting the
+model override more columns (threshold 0.75 instead of 0.6) made things worse: held-out macro-F1 0.72, sensitive recall
+0.86. It is therefore kept as a narrow, explainable option: the rule evidence stays next to the model's reason.
 
 Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
 
