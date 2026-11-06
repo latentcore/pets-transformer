@@ -68,9 +68,19 @@ def _gemini(prompt: str, model: str = "gemini-2.5-flash", timeout: int = 60) -> 
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
                        "generationConfig": {"temperature": 0, "responseMimeType": "application/json"}}).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        out = json.loads(r.read().decode())
-    return out["candidates"][0]["content"]["parts"][0]["text"]
+    import time
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                out = json.loads(r.read().decode())
+            time.sleep(6.5)  # free-tier rate limit
+            return out["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 3:
+                time.sleep(20 * (attempt + 1))
+                continue
+            raise
+    raise RuntimeError("gemini: retries exhausted")
 
 
 def second_opinion(backend: str, table: str, n_rows: int, others: list, person_table: bool, column: str,
