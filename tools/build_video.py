@@ -66,13 +66,13 @@ def build_slides() -> list[tuple[str, str, str]]:
               "<p class='big' style='font-size:40px;color:#7fb3ff'>Protect the data, keep its value.</p>"
               "<p>A working tool that detects personal data, chooses a protection for every field, transforms the dataset and measures what was removed and what was kept.</p>"
               "<div class='foot'><span>team Cowork · Mert Yünlü · solo</span><span>all data synthetic · measured with pets-eval</span></div></div></body></html>",
-              "PETs Transformer. Protect the data, keep its value. A solo entry for the TrustED challenge at Since AI 2026."))
+              "PETs Transformer: protect the data, keep its value. A solo entry for the TrustED challenge."))
     s.append(("02_problem", slide("Removing names is not enough", """
 <ul><li>Hospitals, cities and banks must share data for research and services.</li>
 <li>Birth date + postcode + sex single out <b>98.9%</b> of patients in the emergency-department table.</li>
 <li>Protect too much, and the data cannot answer the questions it was shared for.</li>
 <li>The right protection depends on <b>who receives the data and why</b>.</li></ul>""", "the problem"),
-              "Organisations must share data, but removing names is not enough: birth date, postcode and sex identify almost every patient. Protect too much, and the data becomes useless."))
+              "Removing names is not enough: birth date, postcode and sex identify almost every patient. Protect too much, and the data becomes useless."))
     s.append(("03_steps", slide("Four steps, one command", """
 <div class='tiles'>
 <div class='tile'><div class='v b'>1</div><div class='l'>DETECT what each column and text contains — from the values</div></div>
@@ -87,14 +87,14 @@ def build_slides() -> list[tuple[str, str, str]]:
 <div class='two'><div><table style='font-size:19px'><tr><th>column</th><th>role</th><th>subtype</th><th>sample</th></tr>{rows}</table></div>
 <div style='flex:0 0 360px'><div class='tile'><div class='v g'>{ho['macro_f1']:.2f}</div><div class='l'>macro-F1 on six held-out datasets<br>(organisers' baseline 0.65)</div></div>
 <div class='tile' style='margin-top:16px'><div class='v g'>{ho['sensitive_recall']:.0%}</div><div class='l'>sensitive columns found<br>(baseline 73%)</div></div></div></div>""", "step 1"),
-              "Detection works from the values, not the names. In this HR export with no column names, the tool finds national IDs, birth dates, addresses, IBANs, salaries and free text. "
-              f"On six datasets it had never seen: macro F1 {ho['macro_f1']:.2f}, {ho['sensitive_recall']:.0%} of sensitive columns found. Baseline: 0.65 and 73 percent."))
+              "Detection works from the values, not the names. In this HR export without column names it finds national IDs, birth dates, addresses, IBANs, salaries and free text. "
+              f"On six unseen datasets: macro F1 {ho['macro_f1']:.2f}, {ho['sensitive_recall']:.0%} of sensitive columns found; baseline 0.65 and 73 percent."))
     picks = [d for d in dec["decisions"] if d["table"] == "ed_visits" and d["column"] in ("patient_hetu", "patient_name", "date_of_birth", "arrival_ts", "municipality", "icd10_primary", "phone", "los_minutes")]
     rows = "".join(f"<tr><td><code>{d['column']}</code></td><td><span class='badge b-{d['role']}'>{d['role']}</span></td><td><b>{d['action']}</b></td><td>{d['reason'][:70]}</td></tr>" for d in picks)
     s.append(("05_select", slide("Select and transform: one decision per field, with a reason", f"""
 <table><tr><th>column</th><th>role</th><th>action</th><th>why</th></tr>{rows}</table>
 <p style='margin-top:14px'>Then local suppression: every row shares its quasi-identifiers with at least <b>5</b> others. Keyed pseudonyms keep joins; the key stays in the controller's vault.</p>""", "steps 2 and 3"),
-              "For the research scenario, every field gets one decision with a reason: keyed pseudonyms keep joins, birth dates become ten-year bands, timestamps become weeks, names and addresses go. Then suppression makes every row share its quasi-identifiers with at least five others."))
+              "Every field gets one decision with a reason: keyed pseudonyms keep joins, birth dates become age bands, timestamps become weeks, names and addresses go. Then suppression to k of five."))
     s.append(("06_measure", slide("Demonstrate: attacks re-run, questions re-asked", f"""
 <div class='tiles'><div class='tile'><div class='v g'>{sm['privacy']:.0%}</div><div class='l'>privacy score (1 − risk)<br>3 linkage attacks, k-anonymity, hash reversal, text leakage</div></div>
 <div class='tile'><div class='v g'>{sm['utility']:.0%}</div><div class='l'>utility retained<br>4 of 5 research tasks answered identically</div></div>
@@ -103,7 +103,7 @@ def build_slides() -> list[tuple[str, str, str]]:
 <tr><td>Local news clips: date, place, age, sex of an accident</td><td class='y'>18.5% re-identified</td><td class='g'>0.0%</td></tr>
 <tr><td>Social posts from the ER: time, first name, home city</td><td class='y'>54.2%</td><td class='g'>0.0%</td></tr>
 <tr><td>Public address directory: name, street, postcode, city</td><td class='y'>57.0%</td><td class='g'>0.0%</td></tr></table>""", "step 4"),
-              "The organisers' toolkit re-runs three linkage attacks and five research tasks. Privacy score one point zero, 80 percent of utility kept, composite 0.90. The classic baselines score 0.48. Same result with the tool's own labels, no catalog."))
+              "The organisers' toolkit re-runs three linkage attacks and five research tasks: privacy one point zero, 80 percent of utility kept, composite 0.90. The classic baselines score 0.48."))
     s.append(("07_frontier", slide("Not one setting — the whole trade-off", f"""
 <div class='two'><div><img src='file:///{(PROJECT / 'outputs' / 'search' / 'health' / 'HEALTH-S1' / 'catalog' / 'frontier.png').as_posix()}' width='700'></div>
 <div><ul><li><b>{search['n_runs']} policies</b> scored with the toolkit (time resolution, k, suppression order, age bands…)</li>
@@ -118,8 +118,8 @@ def build_slides() -> list[tuple[str, str, str]]:
 <div class='tile'><div class='v g'>{cs['exact']['micro']['f2']:.2f}</div><div class='l'>F2 on 26 000 chat turns</div></div>
 <div class='tile'><div class='v g'>{clin['leakage']['identifying_leakage_rate']:.2%}</div><div class='l'>identifying values leaking (notes)</div></div></div>
 <p>Validators with check digits, spoken numbers, spelled e-mails, cue words, public gazetteers, conversation context — no model training, fully explainable.</p>""", "the hardest part"),
-              "Free text is the hardest part: Finnish and Swedish notes and chats, with spoken numbers and spelled e-mails. "
-              f"The redactor reaches F2 {clin['exact']['micro']['f2']:.2f} on clinical notes and {cs['exact']['micro']['f2']:.2f} on chats, with {clin['leakage']['identifying_leakage_rate']:.2%} of identifying values leaking."))
+              "Free text is the hardest part: Finnish and Swedish notes and chats, with spoken numbers. "
+              f"The redactor reaches F2 {clin['exact']['micro']['f2']:.2f} on clinical notes and {cs['exact']['micro']['f2']:.2f} on chats, leaking {clin['leakage']['identifying_leakage_rate']:.2%} of identifying values."))
     s.append(("09_honest", slide("What the report says remains", """
 <ul><li>Privacy is measured against the attacker files we were given — a stronger attacker can do better. Evidence, not proof.</li>
 <li>Utility given up is listed, not hidden: the hour-of-day curve in this scenario.</li>
@@ -144,7 +144,7 @@ def render_png(html_path: Path, png_path: Path) -> None:
 
 async def tts(text: str, path: Path) -> None:
     import edge_tts
-    await edge_tts.Communicate(text, VOICE, rate="+4%").save(str(path))
+    await edge_tts.Communicate(text, VOICE, rate="+8%").save(str(path))
 
 
 def duration(path: Path) -> float:
@@ -169,7 +169,7 @@ def main() -> None:
         hp.write_text(html_s, encoding="utf-8", newline="\n")
         render_png(hp, pp)
         asyncio.run(tts(narration, mp))
-        d = duration(mp) + 0.35
+        d = duration(mp) + 0.3
         # captions: split narration into sentences, proportional timing
         sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+", narration) if x.strip()]
         total = sum(len(x) for x in sents) or 1

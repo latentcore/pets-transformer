@@ -48,10 +48,22 @@ def _ollama(prompt: str, model: str, timeout: int = 90) -> str:
         return json.loads(r.read().decode())["response"]
 
 
+def _load_dotenv() -> None:
+    """Read KEY=value lines from the project's .env (git-ignored) into the environment, without printing them."""
+    from pathlib import Path
+    f = Path(__file__).resolve().parents[1] / ".env"
+    if f.exists():
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
 def _gemini(prompt: str, model: str = "gemini-2.5-flash", timeout: int = 60) -> str:
+    _load_dotenv()
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise RuntimeError("GEMINI_API_KEY not set")
+        raise RuntimeError("GEMINI_API_KEY not set (put it in .env as GEMINI_API_KEY=...)")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
                        "generationConfig": {"temperature": 0, "responseMimeType": "application/json"}}).encode()
