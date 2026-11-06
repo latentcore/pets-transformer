@@ -48,7 +48,19 @@ def _bar(v: float, color: str) -> str:
 def build(dataset: str, scenario: str, variant: str, labels_path: str | None = None, title: str | None = None) -> Path:
     root = package_root()
     run = outputs_dir() / dataset / scenario / variant
-    dec = json.loads((run / "decisions.json").read_text(encoding="utf-8"))
+    dp_meta = json.loads((run / "dp_meta.json").read_text(encoding="utf-8")) if (run / "dp_meta.json").exists() else None
+    if (run / "decisions.json").exists():
+        dec = json.loads((run / "decisions.json").read_text(encoding="utf-8"))
+    else:  # differentially private release: the "decisions" are the mechanism
+        dec = {"policy": {"time_res": "week (+ sampled hour)", "age_band": 10, "age_top": 80, "code_chars": "diagnosis group",
+                          "rare_min": "–", "k": "– (no row map: synthetic rows)", "suppress_order": "–", "text": "drop"},
+               "decisions": [{"table": "ed_visits", "column": c, "role": r, "action": act, "output_column": oc, "reason": why} for c, r, act, oc, why in [
+                   ("arrival_ts", "quasi_identifier", "dp_histogram", "arrival_ts", "ISO week from the noisy (week, age, diagnosis) histogram; hour sampled from a separate noisy hour histogram"),
+                   ("date_of_birth", "quasi_identifier", "dp_histogram", "age", "10-year age band, noisy counts"),
+                   ("icd10_primary", "sensitive_attribute", "dp_histogram", "diagnosis_group", "diagnosis group, noisy counts"),
+                   ("all other columns", "–", "drop", None, "a public dashboard needs none of them"),
+                   ("workload (254 queries)", "–", "dp_answers", "dp_answers.csv", "Laplace noise, ε split over five query families")]],
+               "log": [{"step": "dp", **dp_meta}] if dp_meta else []}
     sc = json.loads((run / "scorecard.json").read_text(encoding="utf-8"))
     scen = io.get_scenario(scenario, root) or {}
     labels = pd.read_csv(labels_path or (outputs_dir() / "detect" / f"{dataset}_labels.csv"), dtype=str).fillna("")
@@ -135,6 +147,12 @@ def build(dataset: str, scenario: str, variant: str, labels_path: str | None = N
             if isinstance(res, dict) and res.get("evaluated"):
                 parts.append(f"<p class='small'>Linkage attack <b>{e(adv)}</b> on {e(t)}: {e(res.get('attack', ''))} → re-identified "
                              f"<b>{res.get('reidentification_rate', 0):.1%}</b> of {res.get('n_targets_in_data')} targets (original data: {res.get('baseline_reidentification_rate_original', 0) or 0:.1%}); median candidate set {res.get('median_candidate_set')}.</p>")
+    eps_png = outputs_dir() / "search" / dataset / scenario / "eps_frontier.png"
+    if dp_meta and eps_png.exists():
+        parts.append("<h3 style='font-size:15px'>Utility vs privacy budget ε</h3>"
+                     f"<img src='data:image/png;base64,{base64.b64encode(eps_png.read_bytes()).decode()}' alt='epsilon sweep'>"
+                     f"<p class='small'>This release: ε = {dp_meta['epsilon_total']} ({e(json.dumps(dp_meta['epsilon']))}), δ = 0, unit of privacy = person, "
+                     f"contribution bound {dp_meta['contribution_bound_visits']} visits; {dp_meta['rows_released']} synthetic rows from {dp_meta['cells_h1']} noisy cells. {e(dp_meta['note'])}.</p>")
     if search:
         b = search["best"]
         parts.append(f"<h3 style='font-size:15px'>Privacy–utility frontier ({search['n_runs']} policies tried)</h3>")

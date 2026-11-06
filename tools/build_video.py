@@ -81,10 +81,10 @@ def build_slides() -> list[tuple[str, str, str]]:
 <div class='tile'><div class='v b'>4</div><div class='l'>DEMONSTRATE: attacks re-run, utility tasks re-asked, frontier drawn</div></div></div>
 <p><code>python run.py protect --dataset health --scenario HEALTH-S1</code></p>""", "what it does"),
               "Four steps, one command: detect what each column contains, select a protection per field, transform the data, and measure what was removed and what was kept."))
-    rows = "".join(f"<tr><td><code>{r.column}</code></td><td><span class='badge b-{r.privacy_role}'>{r.privacy_role}</span></td><td>{r.subtype}</td><td>{r['sample'][:38]}</td></tr>"
-                   for _, r in unseen.iterrows() if r.column in ("c04", "c05", "c06", "c07", "c10", "c11", "c16", "c21", "c22", "c18"))
+    rows = "".join(f"<tr><td><code>{r.column}</code></td><td><span class='badge b-{r.privacy_role}'>{r.privacy_role}</span></td><td>{r.subtype}</td><td>{r['sample'].split(' | ')[0][:30]}</td></tr>"
+                   for _, r in unseen.iterrows() if r.column in ("c04", "c05", "c06", "c07", "c10", "c11", "c16", "c22"))
     s.append(("04_detect", slide("Detect: an HR export with no column names", f"""
-<div class='two'><div><table><tr><th>column</th><th>role</th><th>subtype</th><th>sample</th></tr>{rows}</table></div>
+<div class='two'><div><table style='font-size:19px'><tr><th>column</th><th>role</th><th>subtype</th><th>sample</th></tr>{rows}</table></div>
 <div style='flex:0 0 360px'><div class='tile'><div class='v g'>{ho['macro_f1']:.2f}</div><div class='l'>macro-F1 on six held-out datasets<br>(organisers' baseline 0.65)</div></div>
 <div class='tile' style='margin-top:16px'><div class='v g'>{ho['sensitive_recall']:.0%}</div><div class='l'>sensitive columns found<br>(baseline 73%)</div></div></div></div>""", "step 1"),
               "Detection works from the values, not the names. In this HR export with no column names, the tool finds national IDs, birth dates, addresses, IBANs, salaries and free text. "

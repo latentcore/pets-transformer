@@ -197,6 +197,63 @@ def cmd_redact(a):
                                                     indent=2, ensure_ascii=False), encoding="utf-8", newline="\n")
 
 
+def cmd_dp(a):
+    from pets_transformer import dp as DP
+    root = package_root()
+    visits = io.read_table(root / "data" / "health" / "ed_visits.csv")
+    if a.sweep:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        pts = []
+        for e in [0.25, 0.5, 1.0, 2.0, 4.0, 8.0]:
+            prot, answers, meta = DP.dp_release(visits, eps_hist=e, eps_hour=e / 5, eps_workload=2 * e, bound=a.bound)
+            out = outputs_dir() / "health" / "HEALTH-S2" / f"dp_sweep_eps{e}"
+            DP.write(out, prot, answers, meta)
+            rep = run_scorecard(root / "data" / "health", out, scenario="HEALTH-S2", root=root)
+            s = rep["summary"]
+            u = {x["id"]: x["score"] for x in rep["utility"]}
+            pts.append({"eps_total": meta["epsilon_total"], "eps_hist": e, "privacy": s["privacy"], "utility": s["utility"],
+                        "composite": s["composite"], "tasks": u})
+            print(f"  eps_total {meta['epsilon_total']:5.2f}  utility {s['utility']:.3f}  H-U1 {u.get('H-U1')}  H-U8 {u.get('H-U8')}  H-DP {u.get('H-DP')}", flush=True)
+        sd = outputs_dir() / "search" / "health" / "HEALTH-S2"
+        sd.mkdir(parents=True, exist_ok=True)
+        (sd / "eps_sweep.json").write_text(json.dumps(pts, indent=2), encoding="utf-8", newline="\n")
+        fig, ax = plt.subplots(figsize=(7.5, 4.6), dpi=150)
+        xs = [p["eps_total"] for p in pts]
+        ax.plot(xs, [p["utility"] for p in pts], "-o", c="#1565c0", label="utility (mean of H-U1, H-U8, H-DP)")
+        for tid, c in (("H-U1", "#ef6c00"), ("H-U8", "#2e7d32"), ("H-DP", "#6a1b9a")):
+            ax.plot(xs, [p["tasks"].get(tid) or 0 for p in pts], "--", c=c, alpha=.8, label=tid)
+        ax.set_xscale("log")
+        ax.set_xlabel("total privacy budget ε (person-level, contribution bound 4)")
+        ax.set_ylabel("utility retained")
+        ax.set_ylim(0, 1.05)
+        ax.grid(alpha=.3)
+        ax.set_title("HEALTH-S2 public dashboard: utility vs ε (Laplace mechanism)")
+        ax.legend(fontsize=8)
+        fig.tight_layout()
+        fig.savefig(sd / "eps_frontier.png")
+        print(f"wrote {sd / 'eps_frontier.png'}")
+        return
+    t0 = time.time()
+    prot, answers, meta = DP.dp_release(visits, eps_hist=a.eps_hist, eps_hour=a.eps_hour, eps_workload=a.eps_workload, bound=a.bound)
+    out = outputs_dir() / "health" / "HEALTH-S2" / a.variant
+    DP.write(out, prot, answers, meta)
+    t1 = time.time()
+    rep = run_scorecard(root / "data" / "health", out, scenario="HEALTH-S2", root=root)
+    s = rep["summary"]
+    print(f"[{a.variant}] eps_total {meta['epsilon_total']}  privacy {s['privacy']}  utility {s['utility']}  composite {s['composite']}  "
+          f"(release {t1 - t0:.1f}s, scorecard {time.time() - t1:.1f}s, {meta['rows_released']} synthetic rows)")
+    for k, v in rep["risk_components"].items():
+        print(f"  risk {v:6.3f}  {k}")
+    for u in rep["utility"]:
+        sc = " n/a" if u["score"] is None else f"{u['score']:.2f}"
+        print(f"  util {sc}  {u['id']}  {u['description'][:60]}  {u.get('metric', '')[:50]}")
+    (out / "summary.json").write_text(json.dumps({"variant": a.variant, "dp": meta, "summary": s, "risks": rep["risk_components"],
+                                                   "utility": {u["id"]: u["score"] for u in rep["utility"]}}, indent=2),
+                                      encoding="utf-8", newline="\n")
+
+
 def cmd_report(a):
     from pets_transformer import report as Rp
     path = Rp.build(a.dataset, a.scenario, a.variant, labels_path=a.labels, title=a.title)
@@ -206,6 +263,14 @@ def cmd_report(a):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    dpp = sub.add_parser("dp", help="differentially private public release for HEALTH-S2")
+    dpp.add_argument("--variant", default="dp_eps3")
+    dpp.add_argument("--eps-hist", type=float, default=1.0)
+    dpp.add_argument("--eps-hour", type=float, default=0.2)
+    dpp.add_argument("--eps-workload", type=float, default=2.0)
+    dpp.add_argument("--bound", type=int, default=4)
+    dpp.add_argument("--sweep", action="store_true", help="utility vs epsilon curve")
+    dpp.set_defaults(fn=cmd_dp)
     rp = sub.add_parser("report")
     rp.add_argument("--dataset", required=True)
     rp.add_argument("--scenario", required=True)

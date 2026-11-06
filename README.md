@@ -42,7 +42,23 @@ Health, scenario HEALTH-S1 (secondary-use research in a controlled environment),
 
 The one utility task sacrificed is the hour-of-day arrival curve (H-U8): keeping the hour in the release makes
 almost every row unique on (municipality, arrival time) and local suppression then destroys the municipality mix.
-The frontier search makes this trade-off visible instead of hiding it.
+The frontier search (81 policies, `outputs/search/health/HEALTH-S1/catalog/frontier.png`) makes this trade-off
+visible instead of hiding it.
+
+Health, scenario HEALTH-S2 (public weekly dashboard, open data): a **differentially private** release — person-level
+Laplace mechanism, contribution bound 4 visits, noisy (week × age band × diagnosis group) histogram expanded to
+synthetic rows, hours sampled from a separate noisy histogram, and the 254-query workload answered with noise.
+No row map: nothing links a released row to a person.
+
+| ε (total) | utility (mean of H-U1 weekly ILI, H-U8 hour curve, H-DP workload) | H-U1 | H-U8 | H-DP |
+|---|---|---|---|---|
+| 0.8 | 0.47 | 0.00 | 0.89 | 0.51 |
+| 3.2 (default release) | 0.61 | 0.08 | 0.96 | 0.79 |
+| 6.4 | 0.77 | 0.47 | 0.96 | 0.86 |
+| 12.8 | 0.85 | 0.69 | 0.97 | 0.88 |
+
+B3 (organisers' DP baseline, workload only) reaches 0.80 at ε = 2; the weekly ILI-by-age cells are small, so they
+are the price of a strict budget — the curve `outputs/search/health/HEALTH-S2/eps_frontier.png` shows it.
 
 Detector (`pets-eval detect`, privacy-role macro-F1 / recall of sensitive columns):
 
@@ -52,6 +68,11 @@ Detector (`pets-eval detect`, privacy-role macro-F1 / recall of sensitive column
 | Ours, development datasets (health, finance, cyber) | 0.89 | 0.98 | 0.81 |
 | **Ours, six held-out datasets** | **0.74** | **0.94** | **0.76** |
 | Ours, all nine | 0.82 | 0.96 | 0.78 |
+| + local LLM second opinion (qwen3:8b via Ollama) on the 31 columns below confidence 0.6, held-out | 0.75 (+0.002) | 0.94 | 0.76 |
+
+The LLM pass helps little here: the rules already cover the formatted identifiers, and the remaining errors are
+convention questions (is a transaction amount a quasi-identifier?) that a model cannot settle either. It is kept as an
+explainable option: the rule evidence stays next to the model's reason.
 
 Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
 
@@ -72,6 +93,9 @@ python run.py search  --dataset health --scenario HEALTH-S1 --budget 90       # 
 python run.py redact  --dataset health --table clinical_notes --column note_text
 python run.py redact  --dataset customer_service --table turns --column text
 python run.py report  --dataset health --scenario HEALTH-S1 --variant week    # HTML report
+python run.py dp --variant dp_eps3 && python run.py dp --sweep                  # HEALTH-S2 DP release + ε curve
+python run.py submission --release health:HEALTH-S1:week --release health:HEALTH-S2:dp_eps3   # pets_submission/
+python tools/build_video.py                                                     # demo video (Edge headless + edge-tts + ffmpeg)
 ```
 
 The proving-ground package is team-only material and is not in this repository (`materials/` is git-ignored);

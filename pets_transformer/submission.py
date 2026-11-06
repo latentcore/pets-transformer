@@ -39,7 +39,13 @@ def build(releases: dict[str, tuple[str, str]], out: Path | None = None) -> Path
     red_df, spans = Rd.redact_table(turns, "text", "turn_id", red, conv_col="conversation_id", seq_col="seq")
     ev = red_df[red_df.split == "eval"]
     ev[["turn_id", "text"]].to_csv(out / "customer_service_eval_redacted.csv", index=False)
-    Rd.write_spans({k: v for k, v in spans.items() if k in set(ev.turn_id.astype(str))}, out / "customer_service_eval_spans.jsonl")
+    ev_ids = set(ev.turn_id.astype(str))
+    Rd.write_spans({k: v for k, v in spans.items() if k in ev_ids}, out / "customer_service_eval_spans.jsonl")
+    # unseen free-text column: spans and redacted text, as the organisers' README allows
+    u_red = outputs_dir() / "redact" / "unseen__export_2025_q4__c16"
+    if (u_red / "spans.jsonl").exists():
+        shutil.copy(u_red / "spans.jsonl", out / "unseen_c16_spans.jsonl")
+        shutil.copy(u_red / "export_2025_q4.csv", out / "unseen_export_2025_q4_redacted.csv")
     # 3. chosen releases
     for ds, (scen, variant) in releases.items():
         src = outputs_dir() / ds / scen / variant
