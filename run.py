@@ -123,7 +123,8 @@ def cmd_detect(a):
 
 def cmd_submission(a):
     from pets_transformer import submission as Sb
-    rel = [tuple(item.split(":")) for item in a.release]
+    items = a.release or ["health:HEALTH-S1:week", "health:HEALTH-S2:dp_eps3"]
+    rel = list(dict.fromkeys(tuple(item.split(":")) for item in items))  # argparse 'append' keeps the default: dedupe
     out = Sb.build(rel)
     print(f"wrote {out}")
 
@@ -295,7 +296,7 @@ def main(argv=None):
     d.add_argument("--llm-threshold", type=float, default=0.6)
     d.set_defaults(fn=cmd_detect)
     sm = sub.add_parser("submission")
-    sm.add_argument("--release", action="append", default=["health:HEALTH-S1:week"], help="dataset:scenario:variant")
+    sm.add_argument("--release", action="append", default=None, help="dataset:scenario:variant (default: health S1 week + S2 dp_eps3)")
     sm.set_defaults(fn=cmd_submission)
     p = sub.add_parser("protect")
     p.add_argument("--dataset", required=True)
