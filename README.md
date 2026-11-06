@@ -1,0 +1,103 @@
+# PETs Transformer — protect the data, keep its value
+
+**Since AI Hackathon 2026 · TrustED challenge · team Cowork (Mert Yünlü, solo)**
+
+A working tool that takes a dataset with personal data, **detects** what every column and text contains,
+**selects** a privacy-enhancing technique (PET) per field for a chosen sharing scenario, **transforms** the data,
+and **demonstrates** — with numbers — how much re-identification risk was removed and how much analytical value
+survived. It does not pick one magic setting: it searches the privacy–utility trade-off and shows the whole frontier,
+then states honestly what risk remains.
+
+Everything below is measured with the organisers' `pets-eval` toolkit on the synthetic PETs Proving Ground package
+(nine domains, 4.7 M rows, 475 catalogued columns, 354 000 labelled PII spans, attacker files with ground truth).
+Self-assessment scores are not the official judging score.
+
+## What it does (the five things the brief asks for)
+
+| Step | What the tool does | How it is measured |
+|---|---|---|
+| 1 Detect | Classifies every column by **values first, names second**: check-digit validators (HETU, IBAN, Luhn cards), formats (IP, MAC, plates, postcodes, coordinates, timestamps, dates of birth), gazetteers built only from the *public* attacker files (names, streets, municipalities), statistics (cardinality, length, token shape), and whether the table is a *person table* or an *event table*. Optional second opinion from a local LLM (Ollama) or the Gemini API for low-confidence columns. | `pets-eval detect` against the field catalog. Rules were tuned on 3 datasets; **6 datasets were held out**. The unlabelled `unseen` export (26 obfuscated columns) is labelled and submitted for organiser scoring. |
+| 2 Select | A policy maps (role, subtype, scenario needs) → action: keyed pseudonym (HMAC-SHA256), age band, timestamp rounding, postcode prefix, code truncation, rare-category merging, free-text redaction, drop. Every decision carries a reason. | `decisions.json` per release; shown in the HTML report. |
+| 3 Transform | Produces the protected tables, local suppression to k ≥ 5 on the catalogued quasi-identifiers, shuffled rows, row maps for scoring only. | Reproducible with one command. |
+| 4 Demonstrate | `pets-eval scorecard`: linkage attacks with the shipped attacker knowledge, k-anonymity, hash reversal, free-text leakage; utility tasks of the scenario (medians, mixes, revisit rates, joins, hour curves, model AUC). Plus a **frontier search**: ~80 policies scored, Pareto front drawn, chosen point and baselines marked. | privacy / utility / composite per release, frontier chart. |
+| 5 Scenario | One of the 27 sharing scenarios (recipient, purpose, trust level, threat model) is chosen up front; the report states which questions the recipient can still answer and which risks remain. | report section "What remains, honestly". |
+
+Free text (Finnish, Swedish, English clinical notes and contact-centre chats) is handled by a hybrid redactor:
+validators, spoken-number sequences ("nolla neljä viisi …", "noll fyra …"), spelled e-mails, cue words that type a
+nearby value (hetu, asiakasnumero, salasana, IMEI), gazetteers, dates, ages, addresses, organisations, signatures,
+and conversation context (a number read out over several turns keeps its label). Output: typed placeholders
+(`[PERSON]`, `[PHONE]`, …) and span files that `pets-eval text` scores.
+
+## Results (measured, Saturday 7 Nov 2026)
+
+Health, scenario HEALTH-S1 (secondary-use research in a controlled environment), `pets-eval` self-assessment:
+
+| Release | Privacy | Utility | Composite |
+|---|---|---|---|
+| B2 classic SDC (organisers' baseline, from BENCHMARK.md) | 0.36 | 0.79 | ≈0.48 |
+| B2-k, k ≥ 5 (organisers' baseline) | 0.52 | 0.40 | ≈0.48 |
+| quickstart example | 0.37 | 0.79 | 0.49 |
+| **PETs Transformer, catalog labels, week resolution** | **1.00** | **0.80** | **0.90** |
+| **PETs Transformer, its own detector's labels (no catalog)** | **1.00** | **0.80** | **0.90** |
+
+The one utility task sacrificed is the hour-of-day arrival curve (H-U8): keeping the hour in the release makes
+almost every row unique on (municipality, arrival time) and local suppression then destroys the municipality mix.
+The frontier search makes this trade-off visible instead of hiding it.
+
+Detector (`pets-eval detect`, privacy-role macro-F1 / recall of sensitive columns):
+
+| Datasets | macro-F1 | sensitive recall | subtype accuracy |
+|---|---|---|---|
+| B1 rule baseline (organisers, all datasets) | 0.65 | 0.73 | – |
+| Ours, development datasets (health, finance, cyber) | 0.89 | 0.98 | 0.81 |
+| **Ours, six held-out datasets** | **0.74** | **0.94** | **0.76** |
+| Ours, all nine | 0.82 | 0.96 | 0.78 |
+
+Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
+
+| Field | records | micro F2 (exact) | identifying leakage |
+|---|---|---|---|
+| health / clinical_notes.note_text (fi, sv, en) | 30 103 | 0.97 | 0.01 % |
+| customer_service / turns.text (train split) | 26 000+ | 0.87 | 0.7 % |
+
+## Reproduce
+
+```bash
+pip install -e materials/PROVING_GROUND/TRUSTED_PETS_PROVING_GROUND_2026/toolkit   # pets-eval (MIT, Since AI ry)
+pip install numpy pandas scipy scikit-learn matplotlib
+python run.py detect --dataset all                       # field classification + scores
+python run.py protect --dataset health --scenario HEALTH-S1 --variant week --time-res week
+python run.py protect --dataset health --scenario HEALTH-S1 --variant detected_week --time-res week --labels outputs/detect/health_labels.csv
+python run.py search  --dataset health --scenario HEALTH-S1 --budget 90       # frontier (≈40 min)
+python run.py redact  --dataset health --table clinical_notes --column note_text
+python run.py redact  --dataset customer_service --table turns --column text
+python run.py report  --dataset health --scenario HEALTH-S1 --variant week    # HTML report
+```
+
+The proving-ground package is team-only material and is not in this repository (`materials/` is git-ignored);
+set `PETS_ROOT` to its location. Outputs go to `outputs/` (git-ignored: they contain row maps).
+
+## Limitations, stated plainly
+
+- Privacy scores are against the attacker files shipped with the package; a stronger or differently informed attacker
+  can do better. A low re-identification rate here is evidence, not proof.
+- The detector's rules were written looking at three datasets' labels; numbers on those three are optimistic. The
+  held-out numbers are the honest ones.
+- Free text is template-generated synthetic text; the redactor's gazetteers come from the public attacker files, which
+  share the synthetic population's names. On real text, recall of names would be lower; validators and cues transfer.
+- The HMAC key is a fixed demo constant. In production it lives in the controller's vault.
+- Only HEALTH-S1 was searched end to end in the time available; the engine is generic and other scenarios run through
+  the same commands, but their policies were not tuned.
+
+## Declarations
+
+- **AI tools:** Claude Code (Claude Fable 5.1) wrote most of the code and this text under the author's direction; the
+  author set goals, chose the challenge, approved the plan, verified results and runs the demo. Optional LLM second
+  opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API.
+- **Third-party code:** `pets-eval` evaluation toolkit (Since AI ry, MIT) — used unmodified for all measurements;
+  pandas, numpy, scipy, scikit-learn, matplotlib. Everything in `pets_transformer/` was written during the hackathon.
+- **Data:** only the synthetic Proving Ground package and its public attacker files. No real personal data.
+
+## Licence
+
+MIT for the code in this repository. Data and evaluation toolkit: see the Proving Ground package licences.

@@ -265,8 +265,9 @@ def classify(col: str, f: dict, person_table: bool) -> tuple[str, str, float, st
     # ---- free text
     if f["mean_len"] >= 40 and f["space_share"] >= 0.5 and f["unique_ratio"] > 0.3:
         return R("free_text", "FREE_TEXT", 0.9, f"long text, mean {f['mean_len']:.0f} chars")
-    if f["mean_len"] >= 18 and f["mean_tokens"] >= 2.5 and f["unique_ratio"] > 0.1 and f["num_share"] < 0.2 and f["org_share"] < 0.3:
-        return R("free_text", "FREE_TEXT", 0.7, "sentence-like values")
+    if f["mean_len"] >= 15 and f["mean_tokens"] >= 2.5 and f["n_unique"] >= 150 and f["num_share"] < 0.2 and f["org_share"] < 0.3 \
+            and f["muni_share"] < 0.3 and f["street_share"] < 0.3:
+        return R("free_text", "FREE_TEXT", 0.7, "sentence-like values (hundreds of distinct phrases)")
 
     # ---- locations / demographics
     if f["LATLON"] >= 0.8 and (("lat" in name or "lon" in name or "lng" in name) or
@@ -358,5 +359,6 @@ def detect_tables(dataset: str, tables: dict, gaz: Gazetteers) -> pd.DataFrame:
             role, sub, conf, ev = classify(col, f, person_table)
             rows.append({"dataset": dataset, "table": tname, "column": col, "privacy_role": role, "subtype": sub,
                          "confidence": conf, "evidence": ev, "person_table": person_table,
-                         "n_unique": f.get("n_unique", 0), "sample": " | ".join(f.get("vals", [])[:3])[:120]})
+                         "n_unique": f.get("n_unique", 0), "n_rows": len(df), "sample": " | ".join(f.get("vals", [])[:3])[:120],
+                         "samples12": " | ".join(str(v)[:40] for v in f.get("vals", [])[:12])})
     return pd.DataFrame(rows)

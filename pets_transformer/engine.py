@@ -32,7 +32,8 @@ class Policy:
     postcode_digits: int = 0          # 0 = drop, 2/3 = prefix
     code_chars: int = 3               # ICD-10 and similar codes truncated to this many characters
     rare_min: int = 20                # categorical QI values rarer than this -> "other"
-    k: int = 5                        # local suppression target on catalogued quasi-identifiers
+    k: int = 5                        # local suppression target on catalogued quasi-identifiers (1 = none)
+    suppress_order: str = "categorical_first"  # categorical_first | time_first: which QI to blank first
     keep_qi_categoricals: bool = False  # keep QI categoricals (sex, arrival_mode) the tasks do not need
     text: str = "drop"                # drop | keep | redact (redact uses pets_transformer.redact)
     measure_round: Optional[float] = None  # round numerical sensitive attributes to this step
@@ -232,9 +233,13 @@ def protect(domain: str, tables: dict, labels: pd.DataFrame, pol: Policy) -> dic
                 if role == "quasi_identifier" and newcol == col:
                     qi_kept.append(col)
         p = pd.DataFrame(new, index=df.index)
-        p = local_suppression(p, qi_kept, pol.k, order=["arrival_mode", "ambulance_unit", "sex", "language",
-                                                         "municipality", "postcode", "arrival_ts", "sampled_ts",
-                                                         "written_ts", "discharge_ts"], log=log)
+        cat_first = ["arrival_mode", "ambulance_unit", "sex", "language", "municipality", "postcode"]
+        time_cols = ["arrival_ts", "sampled_ts", "written_ts", "discharge_ts", "ts", "started_ts", "ts_created"]
+        order = cat_first + time_cols if pol.suppress_order == "categorical_first" else time_cols + cat_first
+        if pol.k > 1:
+            p = local_suppression(p, qi_kept, pol.k, order=order, log=log)
+        else:
+            log.append({"step": "local_suppression", "skipped": True, "reason": "k=1: no suppression"})
         if pol.shuffle:
             perm = np.random.default_rng(pol.seed).permutation(len(p))
             p = p.iloc[perm].reset_index(drop=True)
