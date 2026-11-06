@@ -160,7 +160,10 @@ def cmd_redact(a):
         print(f"excluded {n_eval} eval-split turns from scoring (gold spans withheld)")
     if a.limit:
         df = df.head(a.limit)
-    rk = io.record_key(cat, a.dataset, a.table, df)
+    rk = io.record_key(cat, a.dataset, a.table, df) or (df.columns[0] if df[df.columns[0]].is_unique else None)
+    if rk is None:
+        df = df.reset_index().rename(columns={"index": "row_id"})
+        rk = "row_id"
     t0 = time.time()
     if "conversation_id" in df.columns and "seq" in df.columns:
         df = df.sort_values(["conversation_id", "seq"], key=lambda s: s.astype(str).str.zfill(8))

@@ -97,7 +97,11 @@ def search(domain: str, scenario: str, budget: int = 80, labels_path: str | None
     best = max(runs, key=lambda r: r["composite"] or 0)
     stage2_fixed = {**best["params"], **base}
     run_grid(GRID_STAGE2, {k: v for k, v in stage2_fixed.items() if k not in GRID_STAGE2})
-    best = max(runs, key=lambda r: r["composite"] or 0)
+    def blanked(r):  # tie-break: among equal composites prefer the release that suppressed the fewest values
+        return sum(l.get("rows_blanked", 0) for l in r.get("suppression", []))
+    finer = {"hour": 4, "day": 3, "week": 2, "month": 1, "drop": 0}
+    best = max(runs, key=lambda r: (round(r["composite"] or 0, 3), round(r["privacy"] or 0, 3),
+                                    -blanked(r) > -1000, finer.get(r["params"].get("time_res"), 0), -blanked(r)))
     front = pareto(runs)
     summary = {"dataset": domain, "scenario": scenario, "n_runs": len(runs), "best": best, "front": front,
                "baselines": BASELINES.get(domain, {})}
