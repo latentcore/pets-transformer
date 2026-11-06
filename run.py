@@ -55,9 +55,57 @@ def cmd_protect(a):
     print(f"wrote {out}")
 
 
+DEV_DATASETS = ["health", "finance", "cyber"]  # rules were tuned on these; the rest are held out
+
+
+def cmd_detect(a):
+    import pandas as pd
+    from pets_eval.detect import score_detection
+    from pets_transformer import detect as D
+    root = package_root()
+    gaz = D.Gazetteers.from_root(root)
+    datasets = [d.name for d in sorted((root / "data").iterdir()) if d.is_dir()] if a.dataset == "all" else [a.dataset]
+    out_dir = outputs_dir() / "detect"
+    out_dir.mkdir(exist_ok=True)
+    preds = []
+    for ds in datasets:
+        t0 = time.time()
+        tables = io.load_tables(root / "data" / ds)
+        p = D.detect_tables(ds, tables, gaz)
+        p.to_csv(out_dir / f"{ds}_labels.csv", index=False)
+        preds.append(p)
+        print(f"{ds}: {len(p)} columns in {time.time() - t0:.1f}s")
+    pred = pd.concat(preds, ignore_index=True)
+    pred.to_csv(out_dir / "all_labels.csv", index=False)
+    cat = io.load_catalog(root)
+    scored = [d for d in datasets if d in set(cat.dataset)]
+    if not scored:
+        return
+    def show(title, dsets):
+        r = score_detection(pred, cat, dsets)
+        pr = {k: v["f1"] for k, v in r["per_role"].items()}
+        print(f"{title}: macro-F1 {r['macro_f1']}  sensitive recall {r['sensitive_recall']}  accuracy {r['accuracy']}"
+              f"  subtype acc {r.get('subtype_accuracy')}  per-role F1 {pr}")
+        return r
+    dev = [d for d in scored if d in DEV_DATASETS]
+    held = [d for d in scored if d not in DEV_DATASETS]
+    if dev:
+        r = show("DEV   (" + ",".join(dev) + ")", dev)
+        if a.errors:
+            for e in r["errors"][:a.errors]:
+                print(f"   miss {e['dataset']}/{e['table']}.{e['column']}: gold {e['privacy_role']} -> pred {e['predicted']}")
+    if held:
+        show("HELD-OUT (" + ",".join(held) + ")", held)
+    show("ALL", scored)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    d = sub.add_parser("detect")
+    d.add_argument("--dataset", default="all")
+    d.add_argument("--errors", type=int, default=0, help="print up to N misclassified DEV columns")
+    d.set_defaults(fn=cmd_detect)
     p = sub.add_parser("protect")
     p.add_argument("--dataset", required=True)
     p.add_argument("--scenario", required=True)
