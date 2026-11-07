@@ -146,8 +146,32 @@ a recipient what its trust level allows (suggested by Chandra Challagonda, FIWAR
 | `/health/research/pseudonymised`, `/health/public/dp` | `Dataset`, `Distribution`, `PrivacyAssessment` | public recipient `scopeQ=/health/public/#` → only the DP release; research recipient in a controlled environment `scopeQ=/health/research/#,/health/public/#` → both |
 | `/health/research/pseudonymised/<privacy role>` | `FieldPolicy` | `scopeQ=/health/+/+/direct_identifier` → the 5 direct identifiers and what was done to each |
 
-Scope labels what a recipient may see; checking who the recipient is (OAuth2 / Keyrock or verifiable credentials and a
-policy enforcement point in front of the broker) is a deployment layer this project does not build.
+**Who the recipient is: signed credential + policy enforcement point (`pets_transformer/access.py`).** Scope labels
+what may be seen; this layer makes sure a recipient only sees what its *verified* trust level allows. The controller
+issues each recipient a data-access credential (Verifiable-Credential-shaped claims with `trustLevel`, signed ES256, with
+an expiry). A read-only PEP in front of the broker verifies signature, issuer and expiry (401 otherwise), maps the trust
+level to the scopes it allows (`public` → `/+/public/#`; `controlled_research` → `/+/research/#`, `/+/public/#`),
+narrows the recipient's own `scopeQ` to them (403 when nothing is left), checks entities read by id against the same
+scopes and refuses writes. Tested cases (mock selftest, 12 of 12 pass; the same 9 query cases also run live on Antares in
+the browser with WebCrypto):
+
+| Recipient | Result |
+|---|---|
+| no credential | 401 |
+| public credential | 1 release (`/health/public/dp`) |
+| research credential | 2 releases |
+| public credential asking `scopeQ=/health/research/#` | 403 |
+| public credential edited to say `controlled_research` | 401 (signature invalid) |
+| expired credential, or one signed by an unknown key | 401 |
+| research credential, `scopeQ=/health/+/+/direct_identifier` | PEP sends `/health/research/+/direct_identifier,/health/public/+/direct_identifier` → 5 fields |
+| public credential, same query | 0 fields |
+| public credential reading the research `Dataset` by id | 403 |
+| research recipient end to end (`consume` through the PEP) | 2 releases with their field policies |
+| recipient trying to write through the PEP | 403 |
+
+This is a small, tested stand-in for the FIWARE pattern (Keyrock + Wilma PEP proxy, or VCVerifier + PEP + ODRL in a
+data space), not a replacement: one issuer key, no revocation list, no consent or purpose checks. In the Antares
+playground the PEP is a function in the same page; in a deployment it is the only network path to the broker.
 
 **Live run on a FIWARE broker (Saturday 7 Nov):** the Antares NGSI-LD context broker (Rust, ETSI CIM 009 V1.9.1,
 the live demo broker linked from the FIWARE award page) running in its browser playground: batch upsert of all 48
@@ -166,14 +190,14 @@ python run.py fiware                                        # dry run: 48 entiti
                                                             #     https://antaresbroker.joinedcontext.com/demo/ (publish + recipient query)
 python run.py fiware --broker https://<ngsi-ld-broker>      # batch upsert + recipient-side query
 python run.py fiware --broker https://<ngsi-ld-broker> --consume --min-composite 0.85
-python tools/ngsi_ld_mock.py --selftest                     # offline smoke test of the publish/query code (a test double, not FIWARE)
+python tools/ngsi_ld_mock.py --selftest                     # offline test of publish/query/scopeQ + the 12 PEP access cases (a test double, not FIWARE)
 ```
 
 ## Reproduce
 
 ```bash
 pip install -e materials/PROVING_GROUND/TRUSTED_PETS_PROVING_GROUND_2026/toolkit   # pets-eval (MIT, Since AI ry)
-pip install numpy pandas scipy scikit-learn matplotlib jsonschema rfc3339-validator
+pip install numpy pandas scipy scikit-learn matplotlib jsonschema rfc3339-validator cryptography
 python run.py detect --dataset all                       # field classification + scores
 python run.py detect --dataset all --llm gemini          # optional second opinion (GEMINI_API_KEY in .env) or --llm ollama
 python run.py protect --dataset health --scenario HEALTH-S1 --variant week --time-res week
@@ -209,7 +233,8 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
   build; the Python HTTP publisher (`--broker`) is tested against a test double only, because the build laptop has no
   Docker or Linux to host a broker server. Custom entity types
   (`PrivacyAssessment`, `FieldPolicy`, `DataSharingScenario`) use the NGSI-LD default context rather than a published
-  Smart Data Model.
+  Smart Data Model. The credential + PEP layer (`access.py`) is tested against the test double and, as page code, on
+  Antares; it is not Keyrock or a data-space connector, has one issuer key and no revocation list.
 
 ## Declarations
 
