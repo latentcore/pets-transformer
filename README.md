@@ -69,11 +69,16 @@ Detector (`pets-eval detect`, privacy-role macro-F1 / recall of sensitive column
 | **Ours, six held-out datasets** | **0.74** | **0.94** | **0.76** |
 | Ours, all nine | 0.82 | 0.96 | 0.78 |
 | + local LLM second opinion (qwen3:8b via Ollama) on the 31 columns below confidence 0.6, held-out | 0.75 (+0.002) | 0.94 | 0.76 |
+| + **Gemini API** second opinion (gemini-3.5-flash) on the same low-confidence columns (24 in the nine catalogued datasets; 3 calls failed on the free-tier quota), held-out | **0.75 (+0.009)** | 0.94 | 0.78 |
 
-The LLM pass helps little here: the rules already cover the formatted identifiers, and the remaining errors are
-convention questions (is a transaction amount a quasi-identifier?) that a model cannot settle either. Letting the
-model override more columns (threshold 0.75 instead of 0.6) made things worse: held-out macro-F1 0.72, sensitive recall
-0.86. It is therefore kept as a narrow, explainable option: the rule evidence stays next to the model's reason.
+The LLM pass is a small, honest gain, not a different detector: the rules already cover the formatted identifiers, and
+most remaining errors are convention questions (is a transaction amount a quasi-identifier?). The local model changed
+almost nothing; Gemini changed 12 of the 24 roles it was asked about (mostly quasi-identifier → non-sensitive or
+free text: station names, ticket titles, transfer messages) and lifted held-out macro-F1 by 0.009, development-set
+macro-F1 from 0.89 to 0.91 and subtype accuracy by 0.02. Letting a model override more columns (threshold 0.75 instead
+of 0.6, local model) made things worse: held-out macro-F1 0.72, sensitive recall 0.86. It is therefore kept as a narrow,
+explainable option: the rule evidence stays next to the model's reason, and only a dozen sample values per column leave
+the machine.
 
 Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
 
@@ -88,6 +93,7 @@ Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
 pip install -e materials/PROVING_GROUND/TRUSTED_PETS_PROVING_GROUND_2026/toolkit   # pets-eval (MIT, Since AI ry)
 pip install numpy pandas scipy scikit-learn matplotlib
 python run.py detect --dataset all                       # field classification + scores
+python run.py detect --dataset all --llm gemini          # optional second opinion (GEMINI_API_KEY in .env) or --llm ollama
 python run.py protect --dataset health --scenario HEALTH-S1 --variant week --time-res week
 python run.py protect --dataset health --scenario HEALTH-S1 --variant detected_week --time-res week --labels outputs/detect/health_labels.csv
 python run.py search  --dataset health --scenario HEALTH-S1 --budget 90       # frontier (≈40 min)
@@ -118,7 +124,8 @@ set `PETS_ROOT` to its location. Outputs go to `outputs/` (git-ignored: they con
 
 - **AI tools:** Claude Code (Claude Fable 5.1) wrote most of the code and this text under the author's direction; the
   author set goals, chose the challenge, approved the plan, verified results and runs the demo. Optional LLM second
-  opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API.
+  opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API (gemini-3.5-flash). The demo video's
+  narration is a synthetic voice (Microsoft Edge neural TTS via edge-tts); slides and script were written with Claude Code.
 - **Third-party code:** `pets-eval` evaluation toolkit (Since AI ry, MIT) — used unmodified for all measurements;
   pandas, numpy, scipy, scikit-learn, matplotlib. Everything in `pets_transformer/` was written during the hackathon.
 - **Data:** only the synthetic Proving Ground package and its public attacker files. No real personal data.
