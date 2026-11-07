@@ -1,7 +1,7 @@
 """Test double for an NGSI-LD broker - NOT a FIWARE component.
 
-Implements only what `run.py fiware` calls (batch upsert, GET entities by type + simple q, GET entity by id, keyValues
-rendering) so the publish/consume code path can be smoke-tested offline. The real run targets a FIWARE context broker.
+Implements only what `run.py fiware` calls (batch upsert, GET entities by type + simple q + scopeQ, GET entity by id,
+keyValues rendering) so the publish/consume code path can be smoke-tested offline. The real run targets a FIWARE context broker.
 
     python tools/ngsi_ld_mock.py --selftest     # starts the mock on a free port, publishes, consumes, stops
 """
@@ -20,6 +20,8 @@ STORE: dict[str, dict] = {}
 
 def _kv(e: dict) -> dict:
     out = {"id": e["id"], "type": e["type"]}
+    if "scope" in e:
+        out["scope"] = e["scope"]
     for k, v in e.items():
         if isinstance(v, dict) and v.get("type") == "Property":
             out[k] = v.get("value")
@@ -41,6 +43,27 @@ def _match(e: dict, q: str) -> bool:
     except (TypeError, ValueError):
         return False
     return {"==": x == y, ">=": x >= y, "<=": x <= y, ">": x > y, "<": x < y}[op]
+
+
+def _scope_one(s: str, pat: str) -> bool:
+    ps, ss = pat.strip("/").split("/"), s.strip("/").split("/")
+    if ps and ps[-1] == "#":  # the scope itself and everything below it
+        ps = ps[:-1]
+        if len(ss) < len(ps):
+            return False
+        ss = ss[:len(ps)]
+    elif len(ss) != len(ps):
+        return False
+    return all(p == "+" or p == x for p, x in zip(ps, ss))
+
+
+def _scope_match(e: dict, scope_q: str) -> bool:
+    """NGSI-LD scopeQ subset: ',' = OR, ';' = AND, '+' = one level, '#' = this level and below."""
+    if not scope_q:
+        return True
+    scopes = e.get("scope") or []
+    scopes = [scopes] if isinstance(scopes, str) else scopes
+    return any(all(any(_scope_one(s, c) for s in scopes) for c in alt.split(";")) for alt in scope_q.split(","))
 
 
 class H(BaseHTTPRequestHandler):
@@ -72,7 +95,8 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         qs = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
         if u.path == "/ngsi-ld/v1/entities":
-            rows = [_kv(e) for e in STORE.values() if e["type"] == qs.get("type") and _match(e, qs.get("q", ""))]
+            rows = [_kv(e) for e in STORE.values()
+                    if e["type"] == qs.get("type") and _match(e, qs.get("q", "")) and _scope_match(e, qs.get("scopeQ", ""))]
             return self._send(200, rows)
         if u.path.startswith("/ngsi-ld/v1/entities/"):
             eid = urllib.parse.unquote(u.path.rsplit("/", 1)[1])
@@ -90,7 +114,9 @@ def selftest() -> int:
         res = fiware.run(None, url, None, False, 0.85)
     finally:
         srv.shutdown()
-    ok = res.get("publish", {}).get("status") == 204 and res.get("consumed", 0) >= 1
+    views = res.get("scope_views", {})
+    ok = (res.get("publish", {}).get("status") == 204 and res.get("consumed", 0) >= 1
+          and views.get("public recipient") == 1 and views.get("research recipient (controlled environment)") == 2)
     print("\nmock selftest:", "PASS" if ok else "FAIL", f"({len(STORE)} entities stored)")
     return 0 if ok else 1
 

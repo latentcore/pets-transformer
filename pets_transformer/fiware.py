@@ -18,6 +18,19 @@ Entities (ETSI NGSI-LD, normalised form, written with one batch upsert):
 The two DCAT-AP entity types are validated against the official Smart Data Models JSON schemas (keyValues form).
 The other three types use the NGSI-LD default context (no private vocabulary to host).
 
+Data classification travels on the data itself as NGSI-LD `scope` (a hierarchical label, ETSI GS CIM 009), so a
+recipient filters with `scopeQ` and only sees what its trust level allows (suggested by Chandra Challagonda,
+FIWARE Foundation, at the hackathon):
+
+    /<dataset>/<audience>                              DataSharingScenario   e.g. /health/research, /health/public
+    /<dataset>/<audience>/<protection>                 Dataset, Distribution, PrivacyAssessment
+                                                       e.g. /health/research/pseudonymised, /health/public/dp
+    /<dataset>/<audience>/<protection>/<privacy role>  FieldPolicy  e.g. /health/research/pseudonymised/direct_identifier
+
+    scopeQ=/health/public/#                     public recipient: only the differentially private release
+    scopeQ=/health/research/#,/health/public/#  research recipient in a controlled environment: both
+    scopeQ=/health/+/+/direct_identifier        every direct identifier and how it was handled, any release
+
     python run.py fiware                                   # dry run: build, validate, write outputs/fiware/
     python run.py fiware --broker https://<broker>         # publish (batch upsert) and read back as a recipient
     python run.py fiware --broker https://<broker> --consume --min-composite 0.85
@@ -45,6 +58,13 @@ RELATIONSHIPS = {"refDataset", "refScenario", "belongsToDataset"}
 DEFAULT_RELEASES = ["health:HEALTH-S1:week", "health:HEALTH-S2:dp_eps3"]
 ID_PREFIX = "pets-transformer"
 TIME_RES = {"hour": "PT1H", "day": "P1D", "week": "P7D", "month": "P1M"}
+AUDIENCE = {"controlled_research": "research", "public": "public"}  # scenario trust level -> scope segment
+SCOPE_VIEWS = [["public recipient", "/health/public/#"],
+               ["research recipient (controlled environment)", "/health/research/#,/health/public/#"]]
+
+
+def _seg(x) -> str:
+    return "".join(c if c.isalnum() or c in "_-" else "_" for c in str(x or "")) or "unclassified"
 
 
 # ----------------------------------------------------------------------------------------------- building entities
@@ -122,16 +142,19 @@ def release_entities(dataset: str, scenario_id: str, variant: str) -> list[dict]
                   f"timestamps rounded to {policy.get('time_res')}, local suppression to k >= {policy.get('k')}, free text {policy.get('text')}")
         keywords = ["pseudonymisation", "k-anonymity", "generalisation", "synthetic data", dataset]
         tres = [TIME_RES[policy["time_res"]]] if policy.get("time_res") in TIME_RES else []
+    trust = scen.get("trust_level", "")
+    audience = f"/{_seg(dataset)}/{_seg(AUDIENCE.get(trust, trust))}"
+    scope = f"{audience}/{'dp' if dp else 'pseudonymised'}"
 
     entities: list[dict] = [{
-        "id": sc_id, "type": "DataSharingScenario",
+        "id": sc_id, "type": "DataSharingScenario", "scope": audience,
         "scenarioId": scenario_id, "name": scen.get("title", scenario_id),
         "recipient": scen.get("recipient", ""), "purpose": scen.get("purpose", ""),
         "trustLevel": scen.get("trust_level", ""), "threatModel": scen.get("threat_model", ""),
         "legalContext": scen.get("legal_context", ""), "utilityRequirements": scen.get("utility_requirements", []),
     }]
     ds = {
-        "id": ds_id, "type": "Dataset",
+        "id": ds_id, "type": "Dataset", "scope": scope,
         "title": f"{dataset} - {scen.get('title', scenario_id)} - protected release '{variant}'",
         "description": (f"Protected release of the synthetic '{dataset}' dataset for scenario {scenario_id} "
                         f"({scen.get('recipient', 'recipient not stated')}). Method: {method}. "
@@ -148,7 +171,7 @@ def release_entities(dataset: str, scenario_id: str, variant: str) -> list[dict]
     }
     entities.append(ds)
     for p, did in zip(files, dist_ids):
-        entities.append({"id": did, "type": "Distribution", "title": [p.name],
+        entities.append({"id": did, "type": "Distribution", "scope": scope, "title": [p.name],
                          "description": [f"{p.stem} of release '{variant}' ({scenario_id}), delivered inside the recipient's "
                                          "controlled environment, not published"],
                          "accessURL": [f"pets_submission/{dataset}/{scenario_id}/{p.name}"],
@@ -156,7 +179,7 @@ def release_entities(dataset: str, scenario_id: str, variant: str) -> list[dict]
                          "belongsToDataset": ds_id})
     sacrificed = sorted(k for k, v in utility.items() if v is None or (isinstance(v, (int, float)) and v < 0.5))
     pa = {
-        "id": pa_id, "type": "PrivacyAssessment",
+        "id": pa_id, "type": "PrivacyAssessment", "scope": scope,
         "privacyScore": s.get("privacy"), "utilityScore": s.get("utility"), "compositeScore": s.get("composite"),
         "scoreLabel": s.get("label", "self-assessment"), "scoringMethod": s.get("method", ""), "tool": "pets-eval 1.0.0",
         "riskComponents": summary.get("risks") or scorecard.get("risk_components") or {},
@@ -173,6 +196,7 @@ def release_entities(dataset: str, scenario_id: str, variant: str) -> list[dict]
     for d in decisions.get("decisions", []):
         col = f"{d.get('table')}.{d.get('column')}"
         entities.append({"id": f"urn:ngsi-ld:FieldPolicy:{ID_PREFIX}:{rid}:{col}", "type": "FieldPolicy",
+                         "scope": f"{scope}/{_seg(d.get('role'))}",
                          "table": d.get("table"), "column": d.get("column"), "privacyRole": d.get("role"),
                          "subtype": d.get("subtype") or "", "action": d.get("action"),
                          "outputColumn": d.get("output_column") or "", "reason": d.get("reason") or "",
@@ -192,10 +216,14 @@ def build(releases: list[str] | None = None) -> list[dict]:
 
 
 def normalise(e: dict, context=None) -> dict:
-    """keyValues -> NGSI-LD normalised form with @context (context=False: leave it out)."""
+    """keyValues -> NGSI-LD normalised form with @context (context=False: leave it out). `scope` is a core member of
+    the entity (not a Property) and is kept as is."""
     out = {"id": e["id"], "type": e["type"]}
     for k, v in e.items():
         if k in ("id", "type"):
+            continue
+        if k == "scope":
+            out[k] = v
             continue
         out[k] = {"type": "Relationship", "object": v} if k in RELATIONSHIPS else {"type": "Property", "value": v}
     if context is not False:
@@ -213,7 +241,7 @@ def inline_sdm_context(entities: list[dict]) -> dict:
     used = {"Dataset", "Distribution"}
     for e in entities:
         if e["type"] in ("Dataset", "Distribution"):
-            used |= set(e) - {"id", "type", "@context"}
+            used |= set(e) - {"id", "type", "@context", "scope"}
     return {k: full[k] for k in sorted(used) if k in full}
 
 
@@ -249,7 +277,7 @@ def validate(entities: list[dict]) -> dict:
         report["checked"][e["type"]] = report["checked"].get(e["type"], 0) + 1
         if v is None:
             continue
-        for err in v.iter_errors({k: x for k, x in e.items() if k != "@context"}):
+        for err in v.iter_errors({k: x for k, x in e.items() if k not in ("@context", "scope")}):  # scope: NGSI-LD core
             report["errors"].append(f"{e['id']}: {'/'.join(map(str, err.absolute_path)) or '(root)'}: {err.message[:200]}")
     report["valid"] = not report["errors"]
     return report
@@ -291,9 +319,13 @@ def query(broker: str, params: dict, tenant: str | None = None) -> tuple[int, li
     return _req("GET", f"{base}/ngsi-ld/v1/entities?{qs}", headers=_headers(tenant))
 
 
-def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None) -> list[dict]:
-    """The recipient's side: find assessed releases above a composite score, then pull their catalogue entries."""
-    status, pas = query(broker, {"type": "PrivacyAssessment", "q": f"compositeScore>={min_composite}", "limit": 100}, tenant)
+def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None, scope_q: str | None = None) -> list[dict]:
+    """The recipient's side: find assessed releases above a composite score (with scope_q: only inside the
+    classification the recipient is cleared for), then pull their catalogue entries."""
+    params = {"type": "PrivacyAssessment", "q": f"compositeScore>={min_composite}", "limit": 100}
+    if scope_q:
+        params["scopeQ"] = scope_q
+    status, pas = query(broker, params, tenant)
     if status != 200 or not isinstance(pas, list):
         raise RuntimeError(f"query PrivacyAssessment failed: HTTP {status}: {pas}")
     rows = []
@@ -304,7 +336,7 @@ def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None) 
                       headers=_headers(tenant))
         st2, fps = query(broker, {"type": "FieldPolicy", "q": f'refDataset=="{ds_id}"', "limit": 200}, tenant)
         attacks = pa.get("linkageAttacks") or []
-        rows.append({"dataset": (ds or {}).get("title") if isinstance(ds, dict) else ds_id,
+        rows.append({"dataset": (ds or {}).get("title") if isinstance(ds, dict) else ds_id, "scope": pa.get("scope"),
                      "composite": pa.get("compositeScore"), "privacy": pa.get("privacyScore"), "utility": pa.get("utilityScore"),
                      "linkage_before": max([a.get("reidentificationRateOriginal") or 0 for a in attacks], default=None),
                      "linkage_after": max([a.get("reidentificationRateReleased") or 0 for a in attacks], default=None),
@@ -348,7 +380,27 @@ ANTARES_JS = """// PETs Transformer -> Antares NGSI-LD broker (browser playgroun
     const ex = await (await fetch(`/ngsi-ld/v1/entities?type=FieldPolicy&q=${enc('column=="date_of_birth"')}&options=keyValues`, {headers: R})).json();
     console.log("why was date_of_birth protected?", ex.map(f => `${f.table}.${f.column}: ${f.action} - ${f.reason}`));
   }
-  globalThis.__petsTransformerResult = rows;
+  // Data classification on the data itself: every entity carries an NGSI-LD scope; each recipient filters with scopeQ.
+  const views = {};
+  for (const [who, sq] of __VIEWS__) {
+    const r = await fetch(`/ngsi-ld/v1/entities?type=PrivacyAssessment&scopeQ=${enc(sq)}&options=keyValues&limit=100`, {headers: R});
+    const got = r.ok ? await r.json() : [];
+    const t = [];
+    for (const pa of got) {
+      const dsId = typeof pa.refDataset === "object" ? pa.refDataset.object : pa.refDataset;
+      const ds = await (await fetch(`/ngsi-ld/v1/entities/${enc(dsId)}?options=keyValues`, {headers: R})).json();
+      t.push({scope: pa.scope, release: pick(ds, "title", "http://purl.org/dc/terms/title"), composite: pa.compositeScore,
+              privacy: pa.privacyScore, utility: pa.utilityScore});
+    }
+    views[who] = t;
+    console.log(`${who}: scopeQ=${sq} -> HTTP ${r.status}, ${t.length} release(s)`, r.ok ? "" : await r.text());
+    console.table(t);
+  }
+  const dq = "/health/+/+/direct_identifier";
+  const di = await (await fetch(`/ngsi-ld/v1/entities?type=FieldPolicy&scopeQ=${enc(dq)}&options=keyValues&limit=100`, {headers: R})).json();
+  console.log(`every direct identifier in any release: scopeQ=${dq} -> ${Array.isArray(di) ? di.length : JSON.stringify(di)} field(s)`);
+  console.table((Array.isArray(di) ? di : []).map(f => ({field: `${f.table}.${f.column}`, scope: f.scope, action: f.action})));
+  globalThis.__petsTransformerResult = {rows, views, directIdentifiers: di};
   return rows;
 })();
 """
@@ -358,7 +410,7 @@ def antares_snippet(entities: list[dict], tenant: str = "pets-transformer", min_
     norm = [normalise(e, context=False) for e in entities]
     ctx = [inline_sdm_context(entities), CORE_CONTEXT_V19]
     return (ANTARES_JS.replace("__TENANT__", json.dumps(tenant)).replace("__MIN__", json.dumps(min_composite))
-            .replace("__CTX__", json.dumps(ctx, separators=(",", ":")))
+            .replace("__CTX__", json.dumps(ctx, separators=(",", ":"))).replace("__VIEWS__", json.dumps(SCOPE_VIEWS))
             .replace("__ENTITIES__", json.dumps(norm, ensure_ascii=False, separators=(",", ":"))))
 
 
@@ -401,6 +453,15 @@ def run(releases: list[str] | None, broker: str | None, tenant: str | None, cons
             print(f"  - {r['dataset']}\n    composite {r['composite']} (privacy {r['privacy']}, utility {r['utility']}); "
                   f"worst linkage attack {r['linkage_before']} -> {r['linkage_after']}; sacrificed {r['sacrificed']}; "
                   f"{r['field_policies']} field policies; {r['distributions']} distributions")
-        (out / "consume.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8", newline="\n")
+        views = {}
+        for who, sq in SCOPE_VIEWS:
+            v = consume(broker, 0.0, tenant, scope_q=sq)
+            views[who] = {"scopeQ": sq, "releases": [{"scope": r["scope"], "dataset": r["dataset"], "composite": r["composite"]} for r in v]}
+            print(f"\n{who}: scopeQ={sq} -> {len(v)} release(s)")
+            for r in v:
+                print(f"  - [{r['scope']}] {r['dataset']} (composite {r['composite']})")
+        (out / "consume.json").write_text(json.dumps({"min_composite": rows, "scope_views": views}, indent=2, ensure_ascii=False),
+                                          encoding="utf-8", newline="\n")
         result["consumed"] = len(rows)
+        result["scope_views"] = {w: len(v["releases"]) for w, v in views.items()}
     return result
