@@ -2,6 +2,13 @@
 
 **Since AI Hackathon 2026 · TrustED challenge · team Cowork (Mert Yünlü, solo)**
 
+**Demo video (1:54):** https://youtu.be/0QSOFyT7YBw
+
+**At a glance:** linkage attacks 18–57 % → 0 % · composite 0.90 against baselines of 0.48 · 94 % of sensitive columns
+found on six unseen datasets · free-text redaction F2 0.97 · differentially private release at ε = 3.2 · every release
+published to a FIWARE NGSI-LD broker as a DCAT-AP catalogue, run live on Antares. Running the code needs the
+organisers' team-only Proving Ground package (see [Reproduce](#reproduce)).
+
 A working tool that takes a dataset with personal data, **detects** what every column and text contains,
 **selects** a privacy-enhancing technique (PET) per field for a chosen sharing scenario, **transforms** the data,
 and **demonstrates** — with numbers — how much re-identification risk was removed and how much analytical value
@@ -201,4 +208,4 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
 
 ## Licence
 
-MIT for the code in this repository. Data and evaluation toolkit: see the Proving Ground package licences.
+MIT for the code in this repository (see `LICENSE`). Data and evaluation toolkit: see the Proving Ground package licences.
