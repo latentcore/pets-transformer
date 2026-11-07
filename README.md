@@ -136,13 +136,29 @@ the `FieldPolicy` entities to see which technique was applied to which field and
 against the official Smart Data Models JSON schemas before publishing (the check catches a missing title, a wrong type
 or a malformed date; it passes for all 48 entities of the two releases).
 
+**Data classification on the data itself (NGSI-LD `scope`, recipients filter with `scopeQ`).** Every entity carries a
+hierarchical scope derived from the scenario's trust level and the protection applied, so the broker itself only shows
+a recipient what its trust level allows (suggested by Chandra Challagonda, FIWARE Foundation, at the hackathon):
+
+| Scope | On | Example query |
+|---|---|---|
+| `/health/research`, `/health/public` | `DataSharingScenario` | |
+| `/health/research/pseudonymised`, `/health/public/dp` | `Dataset`, `Distribution`, `PrivacyAssessment` | public recipient `scopeQ=/health/public/#` → only the DP release; research recipient in a controlled environment `scopeQ=/health/research/#,/health/public/#` → both |
+| `/health/research/pseudonymised/<privacy role>` | `FieldPolicy` | `scopeQ=/health/+/+/direct_identifier` → the 5 direct identifiers and what was done to each |
+
+Scope labels what a recipient may see; checking who the recipient is (OAuth2 / Keyrock or verifiable credentials and a
+policy enforcement point in front of the broker) is a deployment layer this project does not build.
+
 **Live run on a FIWARE broker (Saturday 7 Nov):** the Antares NGSI-LD context broker (Rust, ETSI CIM 009 V1.9.1,
 the live demo broker linked from the FIWARE award page) running in its browser playground: batch upsert of all 48
 entities → HTTP 201; the recipient query `PrivacyAssessment` with `compositeScore >= 0.85` returned the HEALTH-S1
 release (composite 0.898, worst linkage attack 0.57 → 0, sacrificed H-U8) with its 38 field policies and 2
 distributions, and `FieldPolicy` with `column == "date_of_birth"` answered "age_band — birth date → age at event in
 10-year bands". The in-browser broker cannot fetch remote `@context` documents, so for it the DCAT-AP terms we use are
-inlined with the same IRIs as the official context, next to the NGSI-LD core context v1.9.
+inlined with the same IRIs as the official context, next to the NGSI-LD core context v1.9. Same evening, with `scope`
+added: `scopeQ=/health/public/#` → 1 release (the DP dashboard, composite 0.777), `scopeQ=/health/research/#,/health/public/#`
+→ 2 releases, `scopeQ=/health/+/+/direct_identifier` → 5 field policies (hetu → keyed pseudonym, name, phone, address
+and physician name → dropped).
 
 ```bash
 python run.py fiware                                        # dry run: 48 entities, schema validation, outputs/fiware/
