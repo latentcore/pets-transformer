@@ -2,7 +2,7 @@
 credential + PEP layer, with the outputs of the live runs on the Antares broker (browser playground, 7 Nov 2026).
 
 The tables are the console output of `outputs/fiware/antares_console.js` pasted into
-https://antaresbroker.joinedcontext.com/demo/ (captured 7 Nov 2026, 16:30 / 21:45 / 22:15 EET); the run can be repeated with
+https://antaresbroker.joinedcontext.com/demo/ (captured 7 Nov 2026, about 16:30 / 21:35 / 21:45 EET); the run can be repeated with
 `python run.py fiware` and the same paste. Same pipeline as tools/build_video.py (Edge headless -> edge-tts -> ffmpeg).
 
     python tools/build_fiware_video.py      # writes outputs/video/fiware_demo.mp4
