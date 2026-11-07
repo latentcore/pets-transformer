@@ -7,3 +7,6 @@ outputs/
 *.zip
 
 materials/
+
+# organiser-only submission folder (row maps + unseen outputs) goes in the source zip, never in git
+pets_submission/
