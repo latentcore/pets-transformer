@@ -8,6 +8,8 @@ The same slide PNGs make the pitch deck (tools/build_deck.py).
 from __future__ import annotations
 
 import asyncio
+import csv
+import html
 import json
 import re
 import subprocess
@@ -154,6 +156,24 @@ recipient: compositeScore ≥ 0.85 → 1 release
 date_of_birth → age_band (10-year bands)</pre></div></div>""", "FIWARE NGSI-LD + Smart Data Models"),
               "Each release is published to a FIWARE NGSI-LD broker as a catalogue, never the rows. "
               "A recipient asks for releases above 0.85 and reads why each field was protected. It runs live on the Antares broker."))
+    vo = out / "voice"
+    if (vo / "scores.json").exists() and (vo / "results.csv").exists() and (vo / "audio" / "T0024085.mp3").exists():
+        vs = json.loads((vo / "scores.json").read_text(encoding="utf-8"))["total"]
+        vr = {r["turn_id"]: r for r in csv.DictReader((vo / "results.csv").open(encoding="utf-8"))}["T0024085"]
+        red = re.sub(r"\[([A-Z_]+)\]", r"<span class='grn'>[\1]</span>", html.escape(vr["redacted_transcript"]))
+        s.append(("09b_voice", slide("Voice channel: does personal data survive a phone call?", f"""
+<div class='tiles'><div class='tile'><div class='v b'>{vs['values']}</div><div class='l'>identifiers read aloud by<br><b>ElevenLabs</b> voices (fi · sv · en)</div></div>
+<div class='tile'><div class='v b'>{vs['survived_stt']}</div><div class='l'>came back out of<br>speech-to-text</div></div>
+<div class='tile'><div class='v y'>{vs['leaked_raw_redaction']}</div><div class='l'>left after redacting<br>the raw transcript</div></div>
+<div class='tile'><div class='v g'>{vs['leaked_after_redaction']}</div><div class='l'>left with the voice adapter<br>(text channel: {vs['text_channel_leaked']})</div></div></div>
+<p style='font-size:23px;margin-top:6px'><b>ElevenLabs audio (Finnish):</b> <span class='red'>{html.escape(vr['original'])}</span><br>
+<b>transcript:</b> {html.escape(vr['transcript'])} &nbsp;→&nbsp; <b>redacted:</b> {red}</p>
+<p style='font-size:21px;color:#9fb0c3'>Synthetic customer turns → ElevenLabs text-to-speech → speech-to-text → the same redactor. Recognisers write spoken identifiers as dash-joined digit groups and spelled letters; a small voice adapter normalises them before redaction. Audio, transcripts and scores: <code>voice_benchmark/</code>.</p>""",
+                                       "ElevenLabs · voice channel"),
+                  [("tts", "Calls are data too. An ElevenLabs voice reads a Finnish identity code:"),
+                   ("file", vo / "audio" / "T0024085.mp3", f"ElevenLabs voice (Finnish): {vr['original']}"),
+                   ("tts", f"The recogniser writes digits; the redactor removes them. Of {vs['values']} identifiers read aloud, "
+                           f"{vs['leaked_after_redaction']} survived, as in text.")]))
     s.append(("10_honest", slide("What the report says remains", """
 <ul><li>Privacy is measured against the attacker files we were given — a stronger attacker can do better. Evidence, not proof.</li>
 <li>Utility given up is listed, not hidden: the hour-of-day curve in this scenario.</li>
@@ -204,17 +224,35 @@ def main() -> None:
         hp, pp, mp = SL / f"{sid}.html", SL / f"{sid}.png", SL / f"{sid}.mp3"
         hp.write_text(html_s, encoding="utf-8", newline="\n")
         render_png(hp, pp)
-        asyncio.run(tts(narration, mp))
+        # narration: one text, or parts [("tts", text) | ("file", audio_path, caption)] joined into one track
+        parts = narration if isinstance(narration, list) else [("tts", narration)]
+        pieces: list[tuple[Path, str, bool]] = []  # audio file, caption text, split caption into sentences?
+        for k, part in enumerate(parts):
+            if part[0] == "tts":
+                p = mp if len(parts) == 1 else SL / f"{sid}_{k}.mp3"
+                asyncio.run(tts(part[1], p))
+                pieces.append((p, part[1], True))
+            else:
+                pieces.append((Path(part[1]), part[2], False))
+        if len(pieces) > 1:
+            fc = "".join(f"[{i}:a]aformat=sample_rates=44100:channel_layouts=stereo[a{i}];" for i in range(len(pieces)))
+            fc += "".join(f"[a{i}]" for i in range(len(pieces))) + f"concat=n={len(pieces)}:v=0:a=1[a]"
+            cmd = ["ffmpeg", "-y", "-loglevel", "error"]
+            for p, _, _ in pieces:
+                cmd += ["-i", str(p)]
+            subprocess.run(cmd + ["-filter_complex", fc, "-map", "[a]", str(mp)], check=True)
         d = duration(mp) + 0.3
-        # captions: split narration into sentences, proportional timing
-        sents = [x.strip() for x in re.split(r"(?<=[.!?:])\s+", narration) if x.strip()]
-        total = sum(len(x) for x in sents) or 1
+        # captions: each piece's text over its own duration, split into sentences with proportional timing
         t0 = t
-        for x in sents:
-            dur = d * len(x) / total
-            n += 1
-            srt.append(f"{n}\n{srt_time(t0)} --> {srt_time(t0 + dur - 0.05)}\n{x}\n")
-            t0 += dur
+        for p, text, split in pieces:
+            pd = duration(p) if len(pieces) > 1 else d
+            sents = [x.strip() for x in re.split(r"(?<=[.!?:])\s+", text) if x.strip()] if split else [text]
+            total = sum(len(x) for x in sents) or 1
+            for x in sents:
+                dur = pd * len(x) / total
+                n += 1
+                srt.append(f"{n}\n{srt_time(t0)} --> {srt_time(t0 + dur - 0.05)}\n{x}\n")
+                t0 += dur
         seg = SL / f"{sid}.mp4"
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "30", "-i", str(pp), "-i", str(mp),
                         "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-ar", "44100", "-ac", "2",

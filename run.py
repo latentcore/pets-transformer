@@ -264,6 +264,11 @@ def cmd_fiware(a):
     fiware.run(a.release, a.broker, a.tenant, a.consume, a.min_composite)
 
 
+def cmd_voice(a):
+    from pets_transformer import voice
+    voice.run(a.n, a.select_only, a.reuse, a.offline, a.max_chars, a.total_chars)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -274,6 +279,14 @@ def main(argv=None):
     fw.add_argument("--consume", action="store_true", help="only run the recipient-side query")
     fw.add_argument("--min-composite", type=float, default=0.0)
     fw.set_defaults(fn=cmd_fiware)
+    vo = sub.add_parser("voice", help="voice-channel privacy: ElevenLabs TTS -> Scribe STT -> redactor -> leakage scores")
+    vo.add_argument("--n", type=int, default=28, help="customer turns in the sample")
+    vo.add_argument("--max-chars", type=int, default=220)
+    vo.add_argument("--total-chars", type=int, default=3600, help="cap on characters sent to text-to-speech")
+    vo.add_argument("--select-only", action="store_true", help="choose the sample and score the text channel, no API calls")
+    vo.add_argument("--reuse", action="store_true", help="keep saved audio/transcripts, only fill the gaps")
+    vo.add_argument("--offline", action="store_true", help="recompute scores from saved transcripts")
+    vo.set_defaults(fn=cmd_voice)
     dpp = sub.add_parser("dp", help="differentially private public release for HEALTH-S2")
     dpp.add_argument("--variant", default="dp_eps3")
     dpp.add_argument("--eps-hist", type=float, default=1.0)

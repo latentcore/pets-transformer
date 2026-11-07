@@ -1,0 +1,72 @@
+{
+ "singles": [
+  "T0024085",
+  "T0020551",
+  "T0075445",
+  "T0018688"
+ ],
+ "batches": [
+  {
+   "lang": "en",
+   "turn_ids": [
+    "T0054783",
+    "T0086782",
+    "T0068973",
+    "T0063777",
+    "T0025853"
+   ],
+   "prompt": "can i just pay by card now it's five one zero five, one zero seven nine, nine two four seven, nine eight six one <break time=\"1.5s\" /> can i just pay by card now it's 4242 4220 4519 5290 <break time=\"1.5s\" /> tatiana petrova my id code is two six, zero seven, zero seven, a, nine six four, a <break time=\"1.5s\" /> ritva koivuvuori my id code is two one, zero six, four five, dash, nine two six, v <break time=\"1.5s\" /> Tatiana Ivanova, my ID code is two zero, zero seven, nine one, dash, nine seven six, H",
+   "id": "B01"
+  },
+  {
+   "lang": "fi",
+   "turn_ids": [
+    "T0019483",
+    "T0014157",
+    "T0031177",
+    "T0003360",
+    "T0006088",
+    "T0040774"
+   ],
+   "prompt": "Voinko maksaa kortilla nyt? Numero on 4000 0055 5764 2098 <break time=\"1.5s\" /> salasanani öö on riikka72# jos se auttaa <break time=\"1.5s\" /> se on yksi kolme, nolla yksi, kuusi kahdeksan, viiva, yhdeksän viisi kahdeksan, äm <break time=\"1.5s\" /> Puolisoni Karim hoitaa yleensä nämä asiat, hänen numeronsa on nolla viisi nolla, seitsemän kuusi viisi, kahdeksan kuusi nolla kuusi. <break time=\"1.5s\" /> sain tekstiviestin numerosta 044 414 3096 jossa pyydettiin maksamaan lasku linkistä https://aallokko-tuki.example/verify?id=426395 onko tämä teiltä <break time=\"1.5s\" /> numero on nolla neljä neljä, viisi kahdeksan kuusi",
+   "id": "B02"
+  },
+  {
+   "lang": "fi",
+   "turn_ids": [
+    "T0100685",
+    "T0047916",
+    "T0015044",
+    "T0084363",
+    "T0126691",
+    "T0062206"
+   ],
+   "prompt": "numero on nolla neljä kuusi, viisi kolme yhdeksän <break time=\"1.5s\" /> Puolisoni Inka Jansson hoitaa yleensä nämä asiat, hänen numeronsa on 044 395 7342. <break time=\"1.5s\" /> saaristo bankin tilille f i neljä kuusi, yhdeksän yksi viisi seitsemän, kahdeksan kaksi viisi kahdeksan, nolla yhdeksän nolla yhdeksän, yksi neljä <break time=\"1.5s\" /> f i kaksi yksi, yhdeksän yhdeksän viisi kahdeksan, kolme kahdeksan kaksi kaksi, yksi viisi kuusi kolme, kuusi seitsemän <break time=\"1.5s\" /> tilinumero on F I neljä yksi, yhdeksän kuusi neljä neljä, viisi kaksi yhdeksän seitsemän, neljä yhdeksän seitsemän yhdeksän, kolme seitsemän <break time=\"1.5s\" /> asiakasnumero on neljä kaksi kuusi yhdeksän, kuusi kaksi nolla seitsemän",
+   "id": "B03"
+  },
+  {
+   "lang": "fi",
+   "turn_ids": [
+    "T0028178",
+    "T0075550",
+    "T0090173",
+    "T0057091",
+    "T0110141"
+   ],
+   "prompt": "asiakasnumero on neljä kaksi kahdeksan neljä, neljä nolla kolme kolme <break time=\"1.5s\" /> Asiakasnumeroni on neljä yksi yksi neljä, nolla yksi yhdeksän seitsemän, nimellä Jun Zhao <break time=\"1.5s\" /> hei tässä essi lehtonen haluan tehdä valituksen asentaja ei tullut sovittuna päivänä 17.12. sain laskun numero 255 295 627 3 ja siinä on jotain outoja lisäpalveluja joita en ole tilannut <break time=\"1.5s\" /> haluan tehdä valituksen asentaja ei tullut sovittuna päivänä 28.4. sain laskun numero 254 978 317 2 ja siinä on jotain outoja lisäpalveluja joita en ole tilannut <break time=\"1.5s\" /> osoitteenmuutos uusi osoite on riihikatu 75 a 1, 21270 nousiainen",
+   "id": "B04"
+  },
+  {
+   "lang": "sv",
+   "turn_ids": [
+    "T0044701",
+    "T0042472",
+    "T0053339",
+    "T0014175",
+    "T0103675"
+   ],
+   "prompt": "mitt lösenord är koirapeni2 om alltså det hjälper <break time=\"1.5s\" /> Jag flyttar 6 februari till Koivukuja 29 A 1, 20360 Turku, kan bredbandet flyttas? <break time=\"1.5s\" /> Hej, det är Ellen Hellsten. Internet har legat nere sedan i går kväll på Lepikkokuja 56, 20900 Turku. <break time=\"1.5s\" /> annika understreck alaaho snabel-a nettiposti punkt example <break time=\"1.5s\" /> sofia18 snabel-a kotiposti punkt example",
+   "id": "B05"
+  }
+ ]
+}

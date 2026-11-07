@@ -1,0 +1,99 @@
+{
+  "stt": "faster-whisper",
+  "model": "large-v3",
+  "device": "cuda",
+  "recordings": {
+    "T0024085": {
+      "turns": [
+        "T0024085"
+      ],
+      "words": 2
+    },
+    "T0020551": {
+      "turns": [
+        "T0020551"
+      ],
+      "words": 7
+    },
+    "T0075445": {
+      "turns": [
+        "T0075445"
+      ],
+      "words": 9
+    },
+    "T0018688": {
+      "turns": [
+        "T0018688"
+      ],
+      "words": 7
+    },
+    "B01": {
+      "turns": [
+        "T0054783",
+        "T0086782",
+        "T0068973",
+        "T0063777",
+        "T0025853"
+      ],
+      "words": 48,
+      "transcript": "Can I just pay by card now? It's 5105 -1079 -9247 -9861A. Can I just pay by card now? It's 4242 -422 -4519 -5290. Tatyana Petrova. ID code is 260707A -964A. Ritva Koivu -Vori. My ID code is 210645 -926V. Tatyana Ivanova. My ID code is 200791 -976H.",
+      "split": true,
+      "split_method": "similarity"
+    },
+    "B02": {
+      "turns": [
+        "T0019483",
+        "T0014157",
+        "T0031177",
+        "T0003360",
+        "T0006088",
+        "T0040774"
+      ],
+      "words": 82,
+      "transcript": "Voinko maksaa kortilla nyt? Numero on 4 -000 -0055 -5764 -2098. Salasanani ö on riikka. 72 hashtag, jos se auttaa. Se on 13 -01 -68 -958 -ÄÄM. Puolisoni Karim hoittaa yleensä nämä asiat. Hänen numeronsa on 050 -765 -8606. Sain tekstiviestin numerosta 044 -414 -3096, jossa pyydettiin maksamaan lasku. Linkistä https, kaksoispiste, vino -vino -aallokko, tavu -tuki, piste -eksample, vino -verify -kysymysmerkki. Ide on yhtä kuin 426395. Onko tämä teiltä? Numero on 044 -586. Jaaminen ottaa kuusi. Ruokaa hiukan, mikä on vuorokas?",
+      "split": true,
+      "split_method": "similarity"
+    },
+    "B03": {
+      "turns": [
+        "T0100685",
+        "T0047916",
+        "T0015044",
+        "T0084363",
+        "T0126691",
+        "T0062206"
+      ],
+      "words": 42,
+      "transcript": "Numero on 046 -539. Puolisoni Inka Jansson hoittaa yleensä nämä asiat. Hänen numeronsa on 044 -395 -7342. Saaristopankin tilille FI46 -9157 -8258 -0909 -14. Saaristopankin tilille FI21 -9958 -3822 -1563 -67. Tilinumero on FI41 -9644. 5297 -4979 -37. Asiakasnumero on 4269 -6207.",
+      "split": true,
+      "split_method": "similarity"
+    },
+    "B04": {
+      "turns": [
+        "T0028178",
+        "T0075550",
+        "T0090173",
+        "T0057091",
+        "T0110141"
+      ],
+      "words": 76,
+      "transcript": "Asiakasnumero on 4284 -4033. Asiakasnumeroni on 411 -40197, nimeellä Jun Zhao. Hei, tässä Essi Lehtonen haluan tehdä valituksen asentaja. Ei tullut sovittuna päivänä 17. joulukuuta sain laskun numero 255 -295 -6273. Ja siinä on jotain outoja lisäpalveluja, joita en ole tilannut. Haluan tehdä valituksen asentaja. Ei tullut sovittuna päivänä 28. huhtikuuta sain laskun numero 254 -978 -3172. Ja siinä on jotain outoja lisäpalveluja, joita en ole tilannut. Osoitteen muutos uusi osoite on Riihikatu 75A1 -21270, Nousiainen.",
+      "split": true,
+      "split_method": "similarity"
+    },
+    "B05": {
+      "turns": [
+        "T0044701",
+        "T0042472",
+        "T0053339",
+        "T0014175",
+        "T0103675"
+      ],
+      "words": 54,
+      "transcript": "Mitt lösenord är kojrapen i två om, alltså det hjälper. Jag flyttar 6 februari till Koivu Kuja 29. A1 -20360 Turku. Kan bredbandet flyttas? Hej det, Ellen Hellsten. Internet har legat nere sedan igår kväll på Lepikku Kuja 56 -20900 Turku. Annika understräck alla hos Nabil Anetiposti .example. Sofia Kadex Antoistas Nabila Kutiposti .example.",
+      "split": true,
+      "split_method": "similarity"
+    }
+  },
+  "seconds": 49.1
+}

@@ -1,0 +1,135 @@
+{
+  "total": {
+    "values": 43,
+    "survived_stt": 40,
+    "leaked_after_redaction": 1,
+    "leaked_raw_redaction": 7,
+    "text_channel_leaked": 1,
+    "survival_rate": 0.9302,
+    "leak_rate_voice": 0.0233,
+    "leak_rate_voice_without_adapter": 0.1628,
+    "leak_rate_text": 0.0233
+  },
+  "per_label": {
+    "ACCOUNT_NUMBER": {
+      "values": 5,
+      "survived_stt": 5,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.2,
+      "leak_rate_text": 0.0
+    },
+    "ADDRESS": {
+      "values": 3,
+      "survived_stt": 3,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.3333,
+      "leak_rate_text": 0.0
+    },
+    "DATE": {
+      "values": 3,
+      "survived_stt": 2,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 0,
+      "survival_rate": 0.6667,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.3333,
+      "leak_rate_text": 0.0
+    },
+    "EMAIL": {
+      "values": 3,
+      "survived_stt": 3,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 0,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.0,
+      "leak_rate_text": 0.0
+    },
+    "IBAN": {
+      "values": 4,
+      "survived_stt": 4,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.25,
+      "leak_rate_text": 0.0
+    },
+    "NATIONAL_ID": {
+      "values": 6,
+      "survived_stt": 6,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.1667,
+      "leak_rate_text": 0.0
+    },
+    "PAYMENT_CARD": {
+      "values": 3,
+      "survived_stt": 2,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 0,
+      "text_channel_leaked": 0,
+      "survival_rate": 0.6667,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.0,
+      "leak_rate_text": 0.0
+    },
+    "PERSON": {
+      "values": 9,
+      "survived_stt": 9,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.1111,
+      "leak_rate_text": 0.0
+    },
+    "PHONE": {
+      "values": 5,
+      "survived_stt": 5,
+      "leaked_after_redaction": 0,
+      "leaked_raw_redaction": 0,
+      "text_channel_leaked": 0,
+      "survival_rate": 1.0,
+      "leak_rate_voice": 0.0,
+      "leak_rate_voice_without_adapter": 0.0,
+      "leak_rate_text": 0.0
+    },
+    "SECRET": {
+      "values": 2,
+      "survived_stt": 1,
+      "leaked_after_redaction": 1,
+      "leaked_raw_redaction": 1,
+      "text_channel_leaked": 1,
+      "survival_rate": 0.5,
+      "leak_rate_voice": 0.5,
+      "leak_rate_voice_without_adapter": 0.5,
+      "leak_rate_text": 0.5
+    }
+  },
+  "n_turns": 31,
+  "n_transcribed": 31,
+  "tts_model": "eleven_multilingual_v2",
+  "stt": {
+    "stt": "faster-whisper",
+    "model": "large-v3",
+    "device": "cuda",
+    "seconds": 49.1
+  },
+  "grouped_recordings": true
+}

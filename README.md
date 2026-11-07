@@ -2,12 +2,15 @@
 
 **Since AI Hackathon 2026 · TrustED challenge · team Cowork (Mert Yünlü, solo)**
 
-**Demo video (1:54):** https://youtu.be/0QSOFyT7YBw · **FIWARE demo video (1:22):** https://youtu.be/CA0VJ8UXuaA
+**Demo video (1:54):** https://youtu.be/0QSOFyT7YBw · **FIWARE demo video (1:22):** https://youtu.be/CA0VJ8UXuaA ·
+**Voice-channel clip (1:07):** built by `tools/build_voice_video.py` from the real ElevenLabs audio (YouTube link
+added Sunday morning)
 
 **At a glance:** linkage attacks 18–57 % → 0 % · composite 0.90 against baselines of 0.48 · 94 % of sensitive columns
 found on six unseen datasets · free-text redaction F2 0.97 · differentially private release at ε = 3.2 · every release
-published to a FIWARE NGSI-LD broker as a DCAT-AP catalogue, run live on Antares. Running the code needs the
-organisers' team-only Proving Ground package (see [Reproduce](#reproduce)).
+published to a FIWARE NGSI-LD broker as a DCAT-AP catalogue, run live on Antares · voice channel: of 43 identifiers
+read aloud by ElevenLabs voices, 1 is left after speech-to-text and redaction (see [Voice channel](#voice-channel-does-personal-data-survive-a-phone-call-elevenlabs)).
+Running the code needs the organisers' team-only Proving Ground package (see [Reproduce](#reproduce)).
 
 A working tool that takes a dataset with personal data, **detects** what every column and text contains,
 **selects** a privacy-enhancing technique (PET) per field for a chosen sharing scenario, **transforms** the data,
@@ -195,11 +198,72 @@ python run.py fiware --broker https://<ngsi-ld-broker> --consume --min-composite
 python tools/ngsi_ld_mock.py --selftest                     # offline test of publish/query/scopeQ + the 12 PEP access cases (a test double, not FIWARE)
 ```
 
+## Voice channel: does personal data survive a phone call? (ElevenLabs)
+
+Contact centres record calls and transcribe them. The redactor above was measured on text; on Saturday night we
+asked whether it holds on what people actually *say*. 31 synthetic customer turns from the corpus (Finnish 19,
+Swedish 6, English 6; 2 754 characters; 43 identifying values: national IDs, phone numbers, IBANs, card numbers,
+customer numbers, e-mail addresses, street addresses, names, one password) were read aloud by ElevenLabs
+multilingual voices (`eleven_multilingual_v2`, one Finnish, one Swedish and one English voice), the audio was
+transcribed, and the transcript was redacted by the same `redact.py`. A value counts as leaked when, after
+normalising both sides (digit words → digits, spelling separators and spaces removed), it is still present in the
+redacted transcript.
+
+| identifier | values | came back out of speech-to-text | left after redacting the raw transcript | left with the voice adapter | same turns, text channel |
+|---|---|---|---|---|---|
+| **all** | **43** | **40 (93 %)** | **7 (16.3 %)** | **1 (2.3 %)** | **1 (2.3 %)** |
+| NATIONAL_ID | 6 | 6 | 1 | 0 | 0 |
+| PHONE | 5 | 5 | 0 | 0 | 0 |
+| IBAN | 4 | 4 | 1 | 0 | 0 |
+| PAYMENT_CARD | 3 | 2 | 0 | 0 | 0 |
+| ACCOUNT_NUMBER | 5 | 5 | 1 | 0 | 0 |
+| EMAIL | 3 | 3 | 0 | 0 | 0 |
+| ADDRESS | 3 | 3 | 1 | 0 | 0 |
+| PERSON | 9 | 9 | 1 | 0 | 0 |
+| DATE | 3 | 2 | 1 | 0 | 0 |
+| SECRET (password) | 2 | 1 | 1 | 1 | 1 |
+
+**What the voice channel changes.** The recogniser writes spoken identifiers as digit groups joined with dashes
+(`290491 -9258`, `FI46 -9157 -8258 -0909 -14`), turns letter names into letters (`aa` → `A`), glues house numbers
+(`75A1`) and splits compound street names (`Koivu Kuja`). The text redactor, written for typed text, missed 7 of the
+40 values that came back. A small **ASR adapter** (`voice.asr_adapt`: dash-joined groups → one token, digit-group
+compaction, Finnish letter names, compound street names, "snabel-a", "hashtag") runs before redaction and brings the
+leak down to 1 of 43, the same as the text channel. The one that remains is a password spoken with a filler
+("salasanani öö on riikka72#"), which comes back as `riikka. 72 #` and is caught neither in text nor in speech.
+
+**How it was measured, stated plainly.**
+- Text-to-speech: ElevenLabs, through the ElevenLabs connector in Claude Code (about 3 100 credits; 4 single turns
+  and 5 grouped recordings with 1.5 s breaks between turns). Only synthetic text was sent.
+- Speech-to-text: **faster-whisper large-v3** (open-source Whisper, on the laptop's GPU, 63 s for the 31 turns). The
+  code's first choice is ElevenLabs Scribe (`voice.stt`, `scribe_v1`), and `python run.py voice` uses it when
+  `ELEVENLABS_API_KEY` is set; no API key was available on the night, so the connector made the speech and Whisper did
+  the recognition. The connector's own transcription node, wired to its speech node, returned the input text by
+  alignment (the `<break>` tags came back verbatim, 0 credits) — not a recognition pass, so it was not used.
+- Scores are computed on the whole recording's transcript, so a value that drifted across a turn boundary still
+  counts. The per-turn transcripts in `voice_benchmark/results.csv` are segments cut at pauses, chosen by similarity
+  to the original turns, for display and for the per-turn clips only.
+- Limitations: 31 turns and 43 values is a probe, not a benchmark. The adapter rules were written after looking at
+  these transcripts, so they are tuned to this sample and to one recogniser. Synthetic speech is cleaner than a phone
+  line. Two Swedish e-mail addresses came back garbled enough that the recogniser, not the redactor, removed them.
+
+Everything is in [`voice_benchmark/`](voice_benchmark/): the sample, the audio (per turn and the grouped
+recordings), the transcripts, `results.csv` (original, transcript, adapted transcript, redacted transcript, gold
+identifiers and the counts per turn) and `scores.json`. The 67-second clip built by `tools/build_voice_video.py`
+plays the real audio next to the transcript and the redaction.
+
+```bash
+python run.py voice                                      # ElevenLabs text-to-speech + Scribe speech-to-text + redaction (ELEVENLABS_API_KEY in .env)
+python tools/whisper_stt.py --model large-v3             # local speech-to-text instead of Scribe (faster-whisper, torch, ffmpeg)
+python run.py voice --offline                            # score the transcripts in outputs/voice/ (copied from voice_benchmark/ when empty)
+python tools/build_voice_video.py                        # the 67 s clip (Edge headless + ffmpeg)
+```
+
 ## Reproduce
 
 ```bash
 pip install -e materials/PROVING_GROUND/TRUSTED_PETS_PROVING_GROUND_2026/toolkit   # pets-eval (MIT, Since AI ry)
 pip install numpy pandas scipy scikit-learn matplotlib jsonschema rfc3339-validator cryptography
+pip install faster-whisper edge-tts pypdf               # optional: local speech-to-text for the voice probe, video narration, PDF merge
 python run.py detect --dataset all                       # field classification + scores
 python run.py detect --dataset all --llm gemini          # optional second opinion (GEMINI_API_KEY in .env) or --llm ollama
 python run.py protect --dataset health --scenario HEALTH-S1 --variant week --time-res week
@@ -211,7 +275,8 @@ python run.py report  --dataset health --scenario HEALTH-S1 --variant week    # 
 python run.py dp --variant dp_eps3 && python run.py dp --sweep                  # HEALTH-S2 DP release + ε curve
 python run.py submission --release health:HEALTH-S1:week --release health:HEALTH-S2:dp_eps3   # pets_submission/ (organisers only)
 python run.py fiware                                                            # NGSI-LD catalogue entities (see above)
-python tools/build_video.py                                                     # demo video (Edge headless + edge-tts + ffmpeg)
+python tools/build_video.py && python tools/build_deck.py                       # demo video (Edge headless + edge-tts + ffmpeg) and the deck PDF
+python tools/build_plan.py                                                      # supporting document: pilot and continuation plan + the two reports (pypdf)
 python tools/build_zip.py                                                       # source zip for the submission form
 ```
 
@@ -252,10 +317,13 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
 
 - **AI tools:** Claude Code (Claude Fable 5.1, later Claude Opus 5.5) wrote most of the code and this text under the author's direction; the
   author set goals, chose the challenge, approved the plan, verified results and runs the demo. Optional LLM second
-  opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API (gemini-3.5-flash). The demo video's
+  opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API (gemini-3.5-flash). The demo videos'
   narration is a synthetic voice (Microsoft Edge neural TTS via edge-tts); slides and script were written with Claude Code.
+  The voice-channel probe's audio is ElevenLabs text-to-speech (`eleven_multilingual_v2`, via the ElevenLabs connector
+  in Claude Code) reading synthetic customer turns; it was transcribed with faster-whisper large-v3 (open-source Whisper).
 - **Third-party code:** `pets-eval` evaluation toolkit (Since AI ry, MIT) — used unmodified for all measurements;
-  pandas, numpy, scipy, scikit-learn, matplotlib, jsonschema, cryptography (ES256 credentials); FIWARE Smart Data Models schemas (dataModel.DCAT-AP) and
+  pandas, numpy, scipy, scikit-learn, matplotlib, jsonschema, cryptography (ES256 credentials); faster-whisper /
+  CTranslate2 (optional, local speech-to-text); FIWARE Smart Data Models schemas (dataModel.DCAT-AP) and
   the ETSI NGSI-LD core context. Everything in `pets_transformer/` was written during the hackathon.
 - **Data:** only the synthetic Proving Ground package and its public attacker files. No real personal data.
 
