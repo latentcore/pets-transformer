@@ -2,7 +2,7 @@
 
 **Since AI Hackathon 2026 · TrustED challenge · team Cowork (Mert Yünlü, solo)**
 
-**Demo video (1:54):** https://youtu.be/0QSOFyT7YBw
+**Demo video (1:54):** https://youtu.be/0QSOFyT7YBw · **FIWARE demo video (1:22):** https://youtu.be/CA0VJ8UXuaA
 
 **At a glance:** linkage attacks 18–57 % → 0 % · composite 0.90 against baselines of 0.48 · 94 % of sensitive columns
 found on six unseen datasets · free-text redaction F2 0.97 · differentially private release at ε = 3.2 · every release
@@ -118,6 +118,8 @@ Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
 | customer_service / turns.text (train split) | 26 000+ | 0.87 | 0.7 % |
 
 ## FIWARE: the context broker as a catalogue of privacy-assessed releases
+
+FIWARE demo video (1:22, live runs on the Antares broker): https://youtu.be/CA0VJ8UXuaA
 
 A protected release is only useful if the recipient can find it and judge it before asking for access. PETs
 Transformer publishes each release to an **NGSI-LD context broker** as linked entities, never the rows:
