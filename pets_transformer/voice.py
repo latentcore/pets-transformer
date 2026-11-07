@@ -57,6 +57,62 @@ for _lang, _words in Rd.DIGIT_WORDS.items():
     for _i, _w in enumerate([w for w in _words if w != "oh"]):
         WORD2DIGIT[_w] = str(_i)
 WORD2DIGIT["oh"] = "0"
+# colloquial Finnish digit words as a recogniser writes them ("viis", "kuus")
+_FI_COLLOQUIAL = {"yks": "1", "kaks": "2", "kolm": "3", "viis": "5", "kuus": "6", "seittemän": "7", "kaheksan": "8", "yheksän": "9"}
+WORD2DIGIT.update(_FI_COLLOQUIAL)
+FI_DIGIT = {w: int(WORD2DIGIT[w]) for w in list(Rd.DIGIT_WORDS["fi"]) + list(_FI_COLLOQUIAL)}
+# day-of-month ordinals and month names, so that a spoken date ("seitsemästoista joulukuuta", "sjätte februari") can be
+# compared with the written one ("17.12.", "6 februari")
+_FI_ORD = ["ensimmäinen", "toinen", "kolmas", "neljäs", "viides", "kuudes", "seitsemäs", "kahdeksas", "yhdeksäs", "kymmenes", "yhdestoista",
+           "kahdestoista", "kolmastoista", "neljästoista", "viidestoista", "kuudestoista", "seitsemästoista", "kahdeksastoista", "yhdeksästoista", "kahdeskymmenes"]
+_SV_ORD = ["första", "andra", "tredje", "fjärde", "femte", "sjätte", "sjunde", "åttonde", "nionde", "tionde", "elfte", "tolfte", "trettonde",
+           "fjortonde", "femtonde", "sextonde", "sjuttonde", "artonde", "nittonde", "tjugonde"]
+_EN_ORD = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth", "eleventh", "twelfth", "thirteenth",
+           "fourteenth", "fifteenth", "sixteenth", "seventeenth", "eighteenth", "nineteenth", "twentieth"]
+ORDINALS: dict[str, int] = {}
+for _lst in (_FI_ORD, _SV_ORD, _EN_ORD):
+    ORDINALS.update({w: i for i, w in enumerate(_lst, 1)})
+for _i in range(1, 10):
+    ORDINALS["kahdeskymmenes" + _FI_ORD[_i - 1]] = 20 + _i
+    ORDINALS["tjugo" + _SV_ORD[_i - 1]] = 20 + _i
+    ORDINALS["twenty" + _EN_ORD[_i - 1]] = 20 + _i
+ORDINALS.update({"kolmaskymmenes": 30, "kolmaskymmenesensimmäinen": 31, "trettionde": 30, "trettioförsta": 31, "thirtieth": 30, "thirtyfirst": 31})
+_FI_MONTH_STEMS = ["tammikuu", "helmikuu", "maaliskuu", "huhtikuu", "toukokuu", "kesäkuu", "heinäkuu", "elokuu", "syyskuu", "lokakuu", "marraskuu", "joulukuu"]
+MONTHS: dict[str, int] = {w: i for i, w in enumerate(["januari", "februari", "mars", "april", "maj", "juni", "juli", "augusti", "september",
+                                                      "oktober", "november", "december"], 1)}
+MONTHS.update({w: i for i, w in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+                                           "november", "december"], 1)})
+_MONTH_RX = r"(?:" + "|".join(_FI_MONTH_STEMS) + r")[a-zäö]*|" + "|".join(sorted(MONTHS, key=len, reverse=True))
+_ORD_MONTH = re.compile(r"\b(" + "|".join(sorted(ORDINALS, key=len, reverse=True)) + r")\s+(" + _MONTH_RX + r")\b", re.I)
+
+
+def _month(tok: str) -> int | None:
+    if tok in MONTHS:
+        return MONTHS[tok]
+    return next((i for i, s in enumerate(_FI_MONTH_STEMS, 1) if tok.startswith(s)), None)
+
+
+def _fi_num(tok: str) -> str | None:
+    """A Finnish numeral written as one word -> digits: "seitsemänkymmentäviisi" -> "75", "yksitoista" -> "11",
+    "kymmenen" -> "10", glued digit words "neljäkaksi" -> "42". None if the word is not such a numeral."""
+    if tok == "kymmenen":
+        return "10"
+    m = re.fullmatch(r"([a-zäö]+)toista", tok)
+    if m and m.group(1) in FI_DIGIT:
+        return str(10 + FI_DIGIT[m.group(1)])
+    m = re.fullmatch(r"([a-zäö]+)kymmentä([a-zäö]+)?", tok)
+    if m and m.group(1) in FI_DIGIT and (m.group(2) is None or m.group(2) in FI_DIGIT):
+        return str(FI_DIGIT[m.group(1)] * 10 + (FI_DIGIT[m.group(2)] if m.group(2) else 0))
+    out, rest = [], tok
+    while rest:
+        w = next((w for w in sorted(FI_DIGIT, key=len, reverse=True) if rest.startswith(w)), None)
+        if w is None:
+            return None
+        out.append(str(FI_DIGIT[w]))
+        rest = rest[len(w):]
+    return "".join(out) if len(out) >= 2 else None
+
+
 SEP_WORDS = set(Rd.SEP_WORDS) | {"välilyönti", "mellanslag", "space", "piste", "punkt", "dot", "ät", "at", "snabel", "snabela",
                                  "understreck", "alaviiva", "underscore", "miukumauku"}
 # a mail provider's domain is shared by thousands of customers and identifies nobody; these are the synthetic corpus's providers
@@ -90,12 +146,21 @@ def api_key() -> str:
 
 # ----------------------------------------------------------------------------------------------- normalisation
 def normalise(text: str) -> tuple[str, str]:
-    """(alnum, digits): letters and digits only, lower-case, digit words -> digits, separator words dropped."""
+    """(alnum, digits): letters and digits only, lower-case, digit words / compound numerals / ordinals / month names ->
+    digits, separator words dropped. Both the gold value and the transcript go through this before comparison."""
     out = []
-    for tok in _TOKEN.findall(text.lower()):
+    t = re.sub(r"\b(twenty|thirty)[- ](first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)\b", r"\1\2", text.lower())
+    for tok in _TOKEN.findall(t):
         if tok in SEP_WORDS:
             continue
-        out.append(WORD2DIGIT.get(tok, tok))
+        if tok in WORD2DIGIT:
+            out.append(WORD2DIGIT[tok])
+        elif tok in ORDINALS:
+            out.append(str(ORDINALS[tok]))
+        elif _month(tok) is not None:
+            out.append(str(_month(tok)))
+        else:
+            out.append(_fi_num(tok) or tok)
     alnum = "".join(out)
     return alnum, "".join(c for c in alnum if c.isdigit())
 
@@ -224,9 +289,10 @@ def tts(key: str, text: str, voice_id: str, path: Path, language: str) -> dict:
     return {"bytes": len(raw), "request_id": hdr.get("request-id", ""), "model": TTS_MODEL, "voice_id": voice_id}
 
 
-def stt(key: str, path: Path, language: str) -> dict:
+def stt(key: str, path: Path, language: str, extra: dict | None = None) -> dict:
+    """ElevenLabs Scribe speech-to-text of one audio file; `extra` adds form fields (e.g. timestamps_granularity=word)."""
     boundary = "----pets" + uuid.uuid4().hex
-    fields = {"model_id": STT_MODEL, "language_code": language, "tag_audio_events": "false", "diarize": "false"}
+    fields = {"model_id": STT_MODEL, "language_code": language, "tag_audio_events": "false", "diarize": "false", **(extra or {})}
     parts = []
     for k, v in fields.items():
         parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode())
@@ -244,7 +310,12 @@ def asr_adapt(text: str) -> str:
     """Generic post-processing of a speech-to-text transcript before redaction (no knowledge of the true text):
     "4242 -4220" -> "4242-4220", runs of single spoken characters "1 5 1 2 0 1" -> "151201", "snabel a" -> "snabel-a",
     "hashtag" -> "#". Recognisers write numbers read out loud in many shapes; the redactor's validators expect one."""
-    t = re.sub(r"(?<=[\w])\s+-\s*(?=[\w])", " ", text)  # a dash between spoken groups is a group separator
+    # a numeral written as one word ("seitsemänkymmentäviisi" -> 75, "neljäkaksi" -> 42); single digit words stay words,
+    # the redactor reads those itself
+    t = re.sub(r"\b[A-Za-zÄÖÅäöå]{4,}\b", lambda m: _fi_num(m.group().lower()) or m.group(), text)
+    # a spoken date ("seitsemästoista joulukuuta" -> "17. joulukuuta", "sjätte februari" -> "6 februari")
+    t = _ORD_MONTH.sub(lambda m: f"{ORDINALS[m.group(1).lower()]}{'.' if _month(m.group(2).lower()) and m.group(2).lower() not in MONTHS else ''} {m.group(2)}", t)
+    t = re.sub(r"(?<=[\w])\s+-\s*(?=[\w])", " ", t)  # a dash between spoken groups is a group separator
     t = re.sub(r"\b(?:[0-9A-Za-zÅÄÖåäö][,\s]+){2,}[0-9A-Za-zÅÄÖåäö]\b",
                lambda m: re.sub(r"[,\s]+", "", m.group()) if sum(c.isdigit() for c in m.group()) >= 3 else m.group(), t)
     # groups of digits read out in chunks ("27 956 87 144 554 961", "4269 6207", "210645 926V"): one token when 8+ digits
@@ -261,7 +332,7 @@ def asr_adapt(text: str) -> str:
     return t
 
 
-COUNTS = ("values", "survived_stt", "leaked_after_redaction", "leaked_raw_redaction", "text_channel_leaked")
+COUNTS = ("values", "survived_stt", "leaked_after_redaction", "leaked_raw_redaction", "leaked_whole_recording", "text_channel_leaked")
 
 
 def score(rows: list[dict]) -> dict:
@@ -276,46 +347,53 @@ def score(rows: list[dict]) -> dict:
             s = present(g["value"], full, g["label"])
             l = present(g["value"], r["redacted"], g["label"]) if r.get("redacted") is not None else False
             lr = present(g["value"], r["redacted_raw"], g["label"]) if r.get("redacted_raw") is not None else False
+            lw = present(g["value"], r["redacted_whole"], g["label"]) if r.get("redacted_whole") is not None else l
             t = present(g["value"], r.get("text_redacted") or "", g["label"])
             for k, v in (("values", 1), ("survived_stt", int(s)), ("leaked_after_redaction", int(l)), ("leaked_raw_redaction", int(lr)),
-                         ("text_channel_leaked", int(t))):
+                         ("leaked_whole_recording", int(lw)), ("text_channel_leaked", int(t))):
                 d[k] += v
                 tot[k] += v
 
     def rates(d):
         n = d["values"] or 1
         return {**d, "survival_rate": round(d["survived_stt"] / n, 4), "leak_rate_voice": round(d["leaked_after_redaction"] / n, 4),
-                "leak_rate_voice_without_adapter": round(d["leaked_raw_redaction"] / n, 4), "leak_rate_text": round(d["text_channel_leaked"] / n, 4)}
+                "leak_rate_voice_without_adapter": round(d["leaked_raw_redaction"] / n, 4),
+                "leak_rate_whole_recording": round(d["leaked_whole_recording"] / n, 4), "leak_rate_text": round(d["text_channel_leaked"] / n, 4)}
     return {"total": rates(tot), "per_label": {k: rates(v) for k, v in sorted(per_label.items())}}
 
 
 def build_rows(sample: pd.DataFrame, transcripts: dict[str, str], red: Rd.Redactor, recordings: dict[str, str] | None = None) -> list[dict]:
-    """transcripts: turn -> its transcript (or the segment of a grouped recording, for display). recordings: turn -> transcript
-    of the whole recording the turn was spoken in; scoring and redaction run on that, as they would on a real call."""
+    """transcripts: turn -> its transcript (the turn's segment of a grouped recording). recordings: turn -> transcript of
+    the whole recording the turn was spoken in. Scoring runs per turn, like the text channel (the corpus is turn-based and
+    pets-eval scores turns); the whole-recording redaction is kept as a secondary count (`leaked_whole_recording`), because
+    redacting five turns in one piece changes the redactor's context and two turns may share a first name."""
     rows = []
     for _, r in sample.iterrows():
         text_red, _ = red.redact(r.text)
         tr = transcripts.get(r.turn_id)
-        full = (recordings or {}).get(r.turn_id, tr)
+        whole = (recordings or {}).get(r.turn_id)
         row = {"turn_id": r.turn_id, "language": r.language, "text": r.text, "gold": r.gold, "text_redacted": text_red,
-               "transcript": tr, "transcript_full": full, "transcript_adapted": None, "redacted": None, "redacted_raw": None, "spans": None}
-        if full is not None:
-            adapted = asr_adapt(full)
+               "transcript": tr, "transcript_full": tr, "transcript_adapted": None, "redacted": None, "redacted_raw": None,
+               "redacted_whole": None, "spans": None}
+        if tr is not None:
+            adapted = asr_adapt(tr)
             redacted, spans = red.redact(adapted)
-            redacted_raw, _ = red.redact(full)
-            row.update(transcript_adapted=adapted, redacted=redacted, redacted_raw=redacted_raw, spans=spans,
-                       redacted_segment=red.redact(asr_adapt(tr))[0] if tr else None)
+            redacted_raw, _ = red.redact(tr)
+            row.update(transcript_adapted=adapted, redacted=redacted, redacted_raw=redacted_raw, spans=spans, redacted_segment=redacted,
+                       redacted_whole=red.redact(asr_adapt(whole))[0] if whole else None)
         rows.append(row)
     return rows
 
 
 def run(n: int = 28, select_only: bool = False, reuse: bool = False, offline: bool = False, max_chars: int = 220,
-        total_chars: int = 3600) -> dict:
-    out = outputs_dir() / "voice"
+        total_chars: int = 3600, subdir: str = "voice") -> dict:
+    """subdir: outputs/<subdir>/ holds sample.csv, audio/, transcripts and scores ("voice" = the Whisper run;
+    "voice_scribe" = the same audio transcribed with ElevenLabs Scribe by tools/scribe_stt.py)."""
+    out = outputs_dir() / subdir
     audio = out / "audio"
     audio.mkdir(parents=True, exist_ok=True)
     bench = Path(__file__).resolve().parents[1] / "voice_benchmark"
-    if (reuse or offline) and not (out / "transcripts.json").exists() and (bench / "transcripts.json").exists():
+    if subdir == "voice" and (reuse or offline) and not (out / "transcripts.json").exists() and (bench / "transcripts.json").exists():
         shutil.copytree(bench, out, dirs_exist_ok=True)  # the committed artefacts: sample, audio, transcripts, scores
         print(f"copied {bench} -> {out}")
     sample_p = out / "sample.csv"
@@ -368,7 +446,7 @@ def run(n: int = 28, select_only: bool = False, reuse: bool = False, offline: bo
     with (out / "results.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["turn_id", "language", "original", "transcript", "transcript_adapted", "redacted_transcript", "gold",
-                    "survived_stt", "leaked_after_redaction", "leaked_without_adapter"])
+                    "survived_stt", "leaked_after_redaction", "leaked_without_adapter", "leaked_whole_recording"])
         for r in rows:
             ids = [g for g in r["gold"] if g["label"] in IDENTIFYING]
             full = r["transcript_full"] or ""
@@ -376,16 +454,18 @@ def run(n: int = 28, select_only: bool = False, reuse: bool = False, offline: bo
                         r.get("redacted_segment") or "", "; ".join(f"{g['label']}={g['value']}" for g in ids),
                         sum(present(g["value"], full, g["label"]) for g in ids),
                         sum(present(g["value"], r["redacted"] or "", g["label"]) for g in ids) if r["redacted"] is not None else "",
-                        sum(present(g["value"], r["redacted_raw"] or "", g["label"]) for g in ids) if r["redacted_raw"] is not None else ""])
+                        sum(present(g["value"], r["redacted_raw"] or "", g["label"]) for g in ids) if r["redacted_raw"] is not None else "",
+                        sum(present(g["value"], r["redacted_whole"] or "", g["label"]) for g in ids) if r.get("redacted_whole") is not None else ""])
     t = sc["total"]
     print(f"\ntext channel (original turns -> redactor): {t['text_channel_leaked']}/{t['values']} identifying values leaked "
           f"({t['leak_rate_text']:.1%})")
     if sc["n_transcribed"]:
         print(f"voice channel ({sc['stt'].get('stt')} {sc['stt'].get('model')}): {t['survived_stt']}/{t['values']} values came back out of "
               f"speech-to-text ({t['survival_rate']:.1%}); after redaction {t['leaked_after_redaction']}/{t['values']} still present "
-              f"({t['leak_rate_voice']:.1%}); without the ASR adapter {t['leaked_raw_redaction']}/{t['values']} ({t['leak_rate_voice_without_adapter']:.1%})")
+              f"({t['leak_rate_voice']:.1%}); without the ASR adapter {t['leaked_raw_redaction']}/{t['values']} ({t['leak_rate_voice_without_adapter']:.1%}); "
+              f"redacting the whole recording in one piece {t['leaked_whole_recording']}/{t['values']}")
         for lab, d in sc["per_label"].items():
             print(f"  {lab:15s} n={d['values']:2d} survived {d['survived_stt']:2d} leaked {d['leaked_after_redaction']:2d} "
-                  f"(without adapter {d['leaked_raw_redaction']:2d}, text channel {d['text_channel_leaked']:2d})")
+                  f"(without adapter {d['leaked_raw_redaction']:2d}, whole recording {d['leaked_whole_recording']:2d}, text channel {d['text_channel_leaked']:2d})")
     print(f"wrote {out}")
     return sc

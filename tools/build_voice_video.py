@@ -64,8 +64,12 @@ def main() -> None:
     sc = json.loads((VO / "scores.json").read_text(encoding="utf-8"))
     t = sc["total"]
     stt_name = f"{sc.get('stt', {}).get('stt', 'speech-to-text')} {sc.get('stt', {}).get('model', '')}".strip()
+    sp = VO.parent / "voice_scribe" / "scores.json"  # the same audio transcribed with ElevenLabs Scribe (tools/scribe_stt.py)
+    s2 = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else None
+    name2 = f"{s2.get('stt', {}).get('stt', '')} {s2.get('stt', {}).get('model', '')}".strip() if s2 else ""
+    engines = f"{name2} + {stt_name}" if s2 else stt_name
     global FOOT
-    FOOT = foot(stt_name)
+    FOOT = foot(engines)
     picks =[i for i in SHOW if i in rows and (VO / "audio" / f"{i}.mp3").exists()] or list(rows)[:4]
     key = None
     try:
@@ -84,7 +88,7 @@ def main() -> None:
     slides: list[tuple[str, str, Path | None, str]] = []  # id, html, audio, caption
     slides.append(("v1_title", f"<!doctype html><html><head><meta charset='utf-8'><style>{CSS}{EXTRA}</style></head><body><div class='s' style='justify-content:center'>"
                    "<div class='tag'>PETs Transformer · voice channel</div><h1>Does personal data survive a phone call?</h1>"
-                   f"<p class='big' style='font-size:34px;color:#7fb3ff'>Synthetic customer turns → ElevenLabs speech → {html.escape(stt_name)} transcript → PETs Transformer redaction</p>"
+                   f"<p class='big' style='font-size:34px;color:#7fb3ff'>Synthetic customer turns → ElevenLabs speech → {html.escape(engines)} transcript → PETs Transformer redaction</p>"
                    f"<p>{sc['n_turns']} turns in Finnish, Swedish and English · {t['values']} identifiers read out loud · only synthetic text and audio</p>{FOOT}</div></body></html>", None,
                    "Contact centres record calls. Does personal data survive the trip from speech to transcript, and does the redactor still catch it? "
                    "We let ElevenLabs voices read synthetic customer turns aloud, ran a speech recogniser over the audio, and redacted the transcripts."))
@@ -109,10 +113,24 @@ def main() -> None:
 <table><tr><th>identifier</th><th>n</th><th>came back out of STT</th><th>left, raw</th><th>left, adapter</th><th>left, text channel</th></tr>{per}</table>""", "results", "cmp"), None,
                    f"Across the sample, {t['survived_stt']} of {t['values']} identifiers came back out of speech-to-text. Redacting the raw transcript left "
                    f"{t['leaked_raw_redaction']}: recognisers write numbers as groups with dashes and spelled letters. A small voice adapter normalises them, "
-                   f"and {t['leaked_after_redaction']} remained, the same as the text channel."))
+                   f"and {t['leaked_after_redaction']} remained; the same turns typed as text leave {t['text_channel_leaked']}."))
+    if s2:
+        t2 = s2["total"]
+        rows_e = "".join(f"<tr><td>{html.escape(n)}</td><td>{x['survived_stt']} of {x['values']}</td><td class='y'>{x['leaked_raw_redaction']}</td>"
+                         f"<td class='g'>{x['leaked_after_redaction']}</td><td>{x['leaked_whole_recording']}</td></tr>" for n, x in ((name2, t2), (stt_name, t)))
+        slides.append(("v9b_engines", page("Two recognisers, one redactor", f"""
+<table><tr><th>speech-to-text</th><th>came back</th><th>left, raw transcript</th><th>left, with the voice adapter</th><th>left, whole 5-turn recording redacted in one piece</th></tr>{rows_e}</table>
+<p class='sub' style='margin-top:16px;font-size:21px'>Same ElevenLabs audio, same turns, same redactor. {html.escape(name2)} writes what was said: numbers as words, spoken dates
+("seitsemästoista joulukuuta"). {html.escape(stt_name)} writes digits joined with dashes. They fail differently; the adapter covers both on this sample.
+Redacting a whole five-turn recording in one piece instead of turn by turn leaves {t2['leaked_whole_recording']} and {t['leaked_whole_recording']}: feed the redactor turn by turn.</p>""",
+                                            "two recognisers"), None,
+                       f"We ran two recognisers on the same audio: ElevenLabs Scribe and Whisper. Scribe writes what was said, numbers as words; Whisper writes digits "
+                       f"with dashes. Both brought back {t2['survived_stt']} of {t2['values']} identifiers; the raw transcripts left {t2['leaked_raw_redaction']} and "
+                       f"{t['leaked_raw_redaction']}; with the adapter, {t2['leaked_after_redaction']} and {t['leaked_after_redaction']}."))
     slides.append(("v10_close", f"<!doctype html><html><head><meta charset='utf-8'><style>{CSS}{EXTRA}</style></head><body><div class='s' style='justify-content:center'>"
-                   "<h1>Voice is a data channel too</h1><p>ElevenLabs multilingual voices turn the synthetic chat corpus into a measurable voice benchmark; "
-                   "the same redactor that scores F2 0.97 on clinical notes is checked on what people actually say, and the gaps it found are fixed in a voice adapter.</p>"
+                   "<h1>Voice is a data channel too</h1><p>ElevenLabs multilingual voices turn the synthetic chat corpus into a measurable voice probe; "
+                   "the same redactor that scores F2 0.97 on clinical notes is checked on what people actually say, transcribed by ElevenLabs Scribe and by Whisper, "
+                   "and the gaps it found are closed in a voice adapter. A probe of 43 values, not a benchmark: the rules were written after seeing these transcripts.</p>"
                    "<p style='color:#9fb0c3'>python run.py voice · audio, transcripts and scores in voice_benchmark/ · code: github.com/latentcore/pets-transformer · all data synthetic</p>"
                    f"{FOOT}</div></body></html>", None, "Voice is a data channel too. The code, the audio and every transcript are in the repository."))
 

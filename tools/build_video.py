@@ -161,6 +161,10 @@ date_of_birth → age_band (10-year bands)</pre></div></div>""", "FIWARE NGSI-LD
         vs = json.loads((vo / "scores.json").read_text(encoding="utf-8"))["total"]
         vr = {r["turn_id"]: r for r in csv.DictReader((vo / "results.csv").open(encoding="utf-8"))}["T0024085"]
         red = re.sub(r"\[([A-Z_]+)\]", r"<span class='grn'>[\1]</span>", html.escape(vr["redacted_transcript"]))
+        sp = out / "voice_scribe" / "scores.json"  # the same audio through ElevenLabs Scribe
+        both = json.loads(sp.read_text(encoding="utf-8"))["total"] if sp.exists() else None
+        same = bool(both) and all(both[k] == vs[k] for k in ("survived_stt", "leaked_raw_redaction", "leaked_after_redaction"))
+        engines = ("ElevenLabs Scribe and Whisper large-v3" + (", same counts" if same else "")) if both else "Whisper large-v3"
         s.append(("09b_voice", slide("Voice channel: does personal data survive a phone call?", f"""
 <div class='tiles'><div class='tile'><div class='v b'>{vs['values']}</div><div class='l'>identifiers read aloud by<br><b>ElevenLabs</b> voices (fi · sv · en)</div></div>
 <div class='tile'><div class='v b'>{vs['survived_stt']}</div><div class='l'>came back out of<br>speech-to-text</div></div>
@@ -168,12 +172,12 @@ date_of_birth → age_band (10-year bands)</pre></div></div>""", "FIWARE NGSI-LD
 <div class='tile'><div class='v g'>{vs['leaked_after_redaction']}</div><div class='l'>left with the voice adapter<br>(text channel: {vs['text_channel_leaked']})</div></div></div>
 <p style='font-size:23px;margin-top:6px'><b>ElevenLabs audio (Finnish):</b> <span class='red'>{html.escape(vr['original'])}</span><br>
 <b>transcript:</b> {html.escape(vr['transcript'])} &nbsp;→&nbsp; <b>redacted:</b> {red}</p>
-<p style='font-size:21px;color:#9fb0c3'>Synthetic customer turns → ElevenLabs text-to-speech → speech-to-text → the same redactor. Recognisers write spoken identifiers as dash-joined digit groups and spelled letters; a small voice adapter normalises them before redaction. Audio, transcripts and scores: <code>voice_benchmark/</code>.</p>""",
+<p style='font-size:21px;color:#9fb0c3'>Synthetic customer turns → ElevenLabs text-to-speech → speech-to-text ({engines}) → the same redactor, turn by turn. Recognisers write spoken identifiers as dash-joined digit groups, spelled letters or number words; a small voice adapter normalises them before redaction. Audio, transcripts and scores: <code>voice_benchmark/</code>.</p>""",
                                        "ElevenLabs · voice channel"),
                   [("tts", "Calls are data too. An ElevenLabs voice reads a Finnish identity code:"),
                    ("file", vo / "audio" / "T0024085.mp3", f"ElevenLabs voice (Finnish): {vr['original']}"),
-                   ("tts", f"The recogniser writes digits; the redactor removes them. Of {vs['values']} identifiers read aloud, "
-                           f"{vs['leaked_after_redaction']} survived, as in text.")]))
+                   ("tts", f"Scribe and Whisper transcribe it; the redactor removes it. Of {vs['values']} identifiers read aloud, "
+                           f"{vs['leaked_after_redaction']} survived redaction with the voice adapter; typed as text, {vs['text_channel_leaked']} does.")]))
     s.append(("10_honest", slide("What the report says remains", """
 <ul><li>Privacy is measured against the attacker files we were given — a stronger attacker can do better. Evidence, not proof.</li>
 <li>Utility given up is listed, not hidden: the hour-of-day curve in this scenario.</li>

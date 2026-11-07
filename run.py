@@ -266,7 +266,7 @@ def cmd_fiware(a):
 
 def cmd_voice(a):
     from pets_transformer import voice
-    voice.run(a.n, a.select_only, a.reuse, a.offline, a.max_chars, a.total_chars)
+    voice.run(a.n, a.select_only, a.reuse, a.offline, a.max_chars, a.total_chars, a.subdir)
 
 
 def main(argv=None):
@@ -286,6 +286,7 @@ def main(argv=None):
     vo.add_argument("--select-only", action="store_true", help="choose the sample and score the text channel, no API calls")
     vo.add_argument("--reuse", action="store_true", help="keep saved audio/transcripts, only fill the gaps")
     vo.add_argument("--offline", action="store_true", help="recompute scores from saved transcripts")
+    vo.add_argument("--subdir", default="voice", help="outputs/<subdir>/: 'voice' (Whisper run) or 'voice_scribe' (tools/scribe_stt.py)")
     vo.set_defaults(fn=cmd_voice)
     dpp = sub.add_parser("dp", help="differentially private public release for HEALTH-S2")
     dpp.add_argument("--variant", default="dp_eps3")

@@ -1,0 +1,117 @@
+{
+  "stt": "ElevenLabs Scribe",
+  "model": "scribe_v1",
+  "device": "api",
+  "recordings": {
+    "T0024085": {
+      "turns": [
+        "T0024085"
+      ],
+      "words": 12,
+      "language_code": "fin",
+      "language_probability": 1.0
+    },
+    "T0020551": {
+      "turns": [
+        "T0020551"
+      ],
+      "words": 6,
+      "language_code": "eng",
+      "language_probability": 1.0
+    },
+    "T0075445": {
+      "turns": [
+        "T0075445"
+      ],
+      "words": 7,
+      "language_code": "fin",
+      "language_probability": 1.0
+    },
+    "T0018688": {
+      "turns": [
+        "T0018688"
+      ],
+      "words": 8,
+      "language_code": "swe",
+      "language_probability": 1.0
+    },
+    "B01": {
+      "turns": [
+        "T0054783",
+        "T0086782",
+        "T0068973",
+        "T0063777",
+        "T0025853"
+      ],
+      "words": 99,
+      "transcript": "Can I just pay by card now? It's five one zero five one zero seven nine nine two four seven nine eight six one A. Can I just pay by card now? It's four two four two four two two uh four five one nine five two nine zero. Tatiana Petrova. ID code is two six zero seven zero seven A nine six four A. Ritva Kovovori. My ID code is two one zero six four five dash nine two six V. Tatiana Ivanova. My ID code is two zero zero seven nine one dash nine seven six H.",
+      "split": true,
+      "split_method": "similarity",
+      "language_code": "eng",
+      "language_probability": 1.0
+    },
+    "B02": {
+      "turns": [
+        "T0019483",
+        "T0014157",
+        "T0031177",
+        "T0003360",
+        "T0006088",
+        "T0040774"
+      ],
+      "words": 114,
+      "transcript": "Voinko maksaa kortilla nyt? Numero on neljä nolla nolla nolla nolla nolla viisi viisi viisi seitsemän kuusi neljä kaksi nolla yhdeksän kahdeksan. Salasanani Ö on Riikka seitsemänkymmentäkaksi hashtag, jos se auttaa. Se on yksi kolme nolla yksi kuusi kahdeksan viiva yhdeksän viisi kahdeksan ÄM. Puolisoni Karim hoitaa yleensä nämä asiat. Hänen numeronsa on nolla viisi nolla seitsemän kuusi viisi kahdeksan kuusi nolla kuusi. Sain tekstiviestin numerosta nolla neljä neljä neljä yksi neljä kolme nolla yhdeksän kuusi, jossa pyydettiin maksamaan lasku linkistä HTTPS kaksoispiste vinoviiva vinoviiva aallokko tavu viiva tuki piste example vinoviiva verify kysymysmerkki ID on yhtäkuin neljä kaksi kuusi kolme yhdeksän viisi. Onko tämä teiltä? Numero on nolla neljä neljä viisi kahdeksan kuusi.",
+      "split": true,
+      "split_method": "similarity",
+      "language_code": "fin",
+      "language_probability": 1.0
+    },
+    "B03": {
+      "turns": [
+        "T0100685",
+        "T0047916",
+        "T0015044",
+        "T0084363",
+        "T0126691",
+        "T0062206"
+      ],
+      "words": 93,
+      "transcript": "Numero on nolla neljä kuusi viisi kolme yhdeksän. Puolisoni Inka Jansson hoitaa yleensä nämä asiat. Hänen numeronsa on nolla neljä neljä kolme yhdeksän viisi seitsemän kolme neljä kaksi. Saaristopankin tilille FI neljä kuus yhdeksän yksi viis seitsemän kahdeksan kaksi viis kahdeksan nolla yhdeksän nolla yhdeksän yksi neljä. FI kaksi yksi yhdeksän yhdeksän viis kahdeksan kolme kahdeksan kaksi kaksi yksi viis kuusi kolme kuusi seitsemän. Tilinumero on FI neljä yksi yhdeksän kuusi neljä neljä viis kaksi yhdeksän seitsemän neljä yhdeksän seitsemän yhdeksän kolme seitsemän. Asiakasnumero on neljä kaksi kuusi yhdeksän kuusi kaksi nolla seitsemän.",
+      "split": true,
+      "split_method": "similarity",
+      "language_code": "fin",
+      "language_probability": 1.0
+    },
+    "B04": {
+      "turns": [
+        "T0028178",
+        "T0075550",
+        "T0090173",
+        "T0057091",
+        "T0110141"
+      ],
+      "words": 106,
+      "transcript": "Asiakasnumero on neljäkaksi kahdeksan neljä neljä nolla kolme kolme. Asiakasnumeroni on neljä yksi yksi neljä nolla yksi yhdeksän seitsemän nimellä Jun Zhao. Hei tässä Essi Lehtonen. Haluan tehdä valituksen. Asentaja ei tullut sovittuna päivänä seitsemästoista joulukuuta. Sain laskun numero kaksi viisi viisi kaksi yhdeksän viisi kuusi kaksi seitsemän kolme ja siinä on jotain outoja lisäpalveluja, joita en ole tilannut. Haluan tehdä valituksen. Asentaja ei tullut sovittuna päivänä kahdeskymmeneskahdeksas huhtikuuta. Sain laskun numero kaksi viisi neljä yhdeksän seitsemän kahdeksan kolme yksi seitsemän kaksi ja siinä on jottain outoja lisäpalveluja, joita en ole tilannu. Osoitteenmuutos. Uusi osoite on Riihikatu seitsemänkymmentäviisi A yksi, kaksi yksi kaksi seitsemän nolla, Nousiainen.",
+      "split": true,
+      "split_method": "similarity",
+      "language_code": "fin",
+      "language_probability": 1.0
+    },
+    "B05": {
+      "turns": [
+        "T0044701",
+        "T0042472",
+        "T0053339",
+        "T0014175",
+        "T0103675"
+      ],
+      "words": 53,
+      "transcript": "Mitt lösenord är koirapenni2 om alltså det hjälper. Jag flyttar sjätte februari till Koivukuja 29, A1-20360 Turku. Kan bredbandet flyttas? Hej det är Ellen Hällsten. Internet har legat nere sedan i går kväll på Lepikku kuja 56, 20900 Turku. Annika understräck Allah hos Nabil Anettiposti punkt example. Sofia Kadiksantoista Nabila Kotiposti punkt example.",
+      "split": true,
+      "split_method": "similarity",
+      "language_code": "swe",
+      "language_probability": 1.0
+    }
+  },
+  "seconds": 39.7
+}

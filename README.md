@@ -3,13 +3,14 @@
 **Since AI Hackathon 2026 · TrustED challenge · team Cowork (Mert Yünlü, solo)**
 
 **Demo video (1:54):** https://youtu.be/0QSOFyT7YBw · **FIWARE demo video (1:22):** https://youtu.be/CA0VJ8UXuaA ·
-**Voice-channel clip (1:07):** built by `tools/build_voice_video.py` from the real ElevenLabs audio (YouTube link
+**Voice-channel clip (1:31):** built by `tools/build_voice_video.py` from the real ElevenLabs audio (YouTube link
 added Sunday morning)
 
 **At a glance:** linkage attacks 18–57 % → 0 % · composite 0.90 against baselines of 0.48 · 94 % of sensitive columns
 found on six unseen datasets · free-text redaction F2 0.97 · differentially private release at ε = 3.2 · every release
-published to a FIWARE NGSI-LD broker as a DCAT-AP catalogue, run live on Antares · voice channel: of 43 identifiers
-read aloud by ElevenLabs voices, 1 is left after speech-to-text and redaction (see [Voice channel](#voice-channel-does-personal-data-survive-a-phone-call-elevenlabs)).
+published to a FIWARE NGSI-LD broker as a DCAT-AP catalogue, run live on Antares · voice channel: 43 identifiers read
+aloud by ElevenLabs voices and transcribed by ElevenLabs Scribe and by Whisper, 0 left after redaction with the voice
+adapter, 4 without it (see [Voice channel](#voice-channel-does-personal-data-survive-a-phone-call-elevenlabs)).
 Running the code needs the organisers' team-only Proving Ground package (see [Reproduce](#reproduce)).
 
 A working tool that takes a dataset with personal data, **detects** what every column and text contains,
@@ -205,57 +206,62 @@ asked whether it holds on what people actually *say*. 31 synthetic customer turn
 Swedish 6, English 6; 2 754 characters; 43 identifying values: national IDs, phone numbers, IBANs, card numbers,
 customer numbers, e-mail addresses, street addresses, names, one password) were read aloud by ElevenLabs
 multilingual voices (`eleven_multilingual_v2`, one Finnish, one Swedish and one English voice), the audio was
-transcribed, and the transcript was redacted by the same `redact.py`. A value counts as leaked when, after
-normalising both sides (digit words → digits, spelling separators and spaces removed), it is still present in the
-redacted transcript.
+transcribed by two recognisers — **ElevenLabs Scribe** (`scribe_v1`, through the API) and **faster-whisper large-v3**
+(open-source Whisper, on the laptop's GPU) — and each turn's transcript was redacted by the same `redact.py`. A value
+counts as leaked when, after normalising both sides (digit words, compound numerals, spoken dates → digits; spelling
+separators and spaces removed), it is still present in the redacted transcript.
 
-| identifier | values | came back out of speech-to-text | left after redacting the raw transcript | left with the voice adapter | same turns, text channel |
-|---|---|---|---|---|---|
-| **all** | **43** | **40 (93 %)** | **7 (16.3 %)** | **1 (2.3 %)** | **1 (2.3 %)** |
-| NATIONAL_ID | 6 | 6 | 1 | 0 | 0 |
-| PHONE | 5 | 5 | 0 | 0 | 0 |
-| IBAN | 4 | 4 | 1 | 0 | 0 |
-| PAYMENT_CARD | 3 | 2 | 0 | 0 | 0 |
-| ACCOUNT_NUMBER | 5 | 5 | 1 | 0 | 0 |
-| EMAIL | 3 | 3 | 0 | 0 | 0 |
-| ADDRESS | 3 | 3 | 1 | 0 | 0 |
-| PERSON | 9 | 9 | 1 | 0 | 0 |
-| DATE | 3 | 2 | 1 | 0 | 0 |
-| SECRET (password) | 2 | 1 | 1 | 1 | 1 |
+| speech-to-text | values | came back out of speech-to-text | left after redacting the raw transcript | left with the voice adapter | left when the whole 5-turn recording is redacted in one piece | same turns, text channel |
+|---|---|---|---|---|---|---|
+| **ElevenLabs Scribe** | 43 | 41 (95 %) | 4 (9.3 %) | **0** | 3 | 1 |
+| **faster-whisper large-v3** | 43 | 41 (95 %) | 4 (9.3 %) | **0** | 1 | 1 |
 
-**What the voice channel changes.** The recogniser writes spoken identifiers as digit groups joined with dashes
-(`290491 -9258`, `FI46 -9157 -8258 -0909 -14`), turns letter names into letters (`aa` → `A`), glues house numbers
-(`75A1`) and splits compound street names (`Koivu Kuja`). The text redactor, written for typed text, missed 7 of the
-40 values that came back. A small **ASR adapter** (`voice.asr_adapt`: dash-joined groups → one token, digit-group
-compaction, Finnish letter names, compound street names, "snabel-a", "hashtag") runs before redaction and brings the
-leak down to 1 of 43, the same as the text channel. The one that remains is a password spoken with a filler
-("salasanani öö on riikka72#"), which comes back as `riikka. 72 #` and is caught neither in text nor in speech.
+Per identifier, left after redacting the raw transcript (Scribe / Whisper) → with the adapter: NATIONAL_ID 0 / 1 → 0 ·
+PHONE 0 / 0 → 0 · IBAN 0 / 1 → 0 · PAYMENT_CARD 0 / 0 → 0 · ACCOUNT_NUMBER 0 / 1 → 0 · EMAIL 0 / 0 → 0 · ADDRESS 1 / 1 → 0 ·
+PERSON 0 / 0 → 0 · DATE 3 / 0 → 0 · SECRET 0 / 0 → 0. The two values that never came back from either recogniser: a card
+number the voice itself stumbled on ("four two four two four two two uh …") and a password ("koirapeni2" → "koirapenni2",
+which the redactor caught anyway).
+
+**What the voice channel changes.** The two recognisers fail differently. Whisper writes spoken identifiers as digit
+groups joined with dashes (`290491 -9258`, `FI46 -9157 -8258 -0909 -14`), turns letter names into letters (`aa` → `A`),
+glues house numbers (`75A1`) and splits compound street names (`Koivu Kuja`). Scribe writes what was said: numbers as
+words, including compound numerals ("Riihikatu seitsemänkymmentäviisi") and spoken dates ("seitsemästoista joulukuuta",
+"sjätte februari"), which the text redactor's spoken-number rules do not cover. A small **ASR adapter**
+(`voice.asr_adapt`: dash-joined groups → one token, digit-group compaction, Finnish letter names, compound numerals and
+glued digit words → digits, ordinal + month → a written date, compound street names, "snabel-a", "hashtag") runs
+before redaction and brings both recognisers to 0 of 43 on this sample. The text channel leaves 1: the password
+"salasanani öö on riikka72#", where the filler "öö" breaks the cue rule; in speech it comes back as "riikka 72 #" and the
+name rule removes it — luck, not design.
 
 **How it was measured, stated plainly.**
 - Text-to-speech: ElevenLabs, through the ElevenLabs connector in Claude Code (about 3 100 credits; 4 single turns
   and 5 grouped recordings with 1.5 s breaks between turns). Only synthetic text was sent.
-- Speech-to-text: **faster-whisper large-v3** (open-source Whisper, on the laptop's GPU, 63 s for the 31 turns). The
-  code's first choice is ElevenLabs Scribe (`voice.stt`, `scribe_v1`), and `python run.py voice` uses it when
-  `ELEVENLABS_API_KEY` is set; no API key was available on the night, so the connector made the speech and Whisper did
-  the recognition. The connector's own transcription node, wired to its speech node, returned the input text by
-  alignment (the `<break>` tags came back verbatim, 0 credits) — not a recognition pass, so it was not used.
-- Scores are computed on the whole recording's transcript, so a value that drifted across a turn boundary still
-  counts. The per-turn transcripts in `voice_benchmark/results.csv` are segments cut at pauses, chosen by similarity
-  to the original turns, for display and for the per-turn clips only.
+- Speech-to-text: ElevenLabs Scribe through the API (`tools/scribe_stt.py`: word timestamps, 40 s for the nine
+  recordings, language detected correctly every time) and faster-whisper large-v3 (`tools/whisper_stt.py`, 63 s on
+  the GPU). The connector's own transcription node, wired to its speech node, returned the input text by alignment
+  (the `<break>` tags came back verbatim, 0 credits) — not a recognition pass, so it was not used.
+- Scoring runs per turn, like the text channel and pets-eval: grouped recordings are split into turns at the pauses,
+  with the boundaries chosen by similarity to the original turns (the same split for both recognisers). Redacting a
+  whole five-turn recording in one piece is reported as a separate column: the redactor then misses a name at the
+  start of a sentence in mid-recording (Scribe: "Ritva Kovovori. My ID code is …"), so a deployment should feed it
+  turn by turn.
 - Limitations: 31 turns and 43 values is a probe, not a benchmark. The adapter rules were written after looking at
-  these transcripts, so they are tuned to this sample and to one recogniser. Synthetic speech is cleaner than a phone
-  line. Two Swedish e-mail addresses came back garbled enough that the recogniser, not the redactor, removed them.
+  these transcripts, so they are tuned to this sample and to these two recognisers; 0 of 43 here does not promise 0 on
+  real calls. Synthetic speech is cleaner than a phone line. Two Swedish e-mail addresses came back garbled enough
+  that the recogniser, not the redactor, removed them.
 
 Everything is in [`voice_benchmark/`](voice_benchmark/): the sample, the audio (per turn and the grouped
-recordings), the transcripts, `results.csv` (original, transcript, adapted transcript, redacted transcript, gold
-identifiers and the counts per turn) and `scores.json`. The 67-second clip built by `tools/build_voice_video.py`
-plays the real audio next to the transcript and the redaction.
+recordings), both recognisers' transcripts, `results.csv` (original, transcript, adapted transcript, redacted
+transcript, gold identifiers and the counts per turn) and `scores.json` — Whisper at the top level, Scribe in
+`scribe/`. The short clip built by `tools/build_voice_video.py` plays the real audio next to the transcript and the
+redaction and compares the two recognisers.
 
 ```bash
-python run.py voice                                      # ElevenLabs text-to-speech + Scribe speech-to-text + redaction (ELEVENLABS_API_KEY in .env)
-python tools/whisper_stt.py --model large-v3             # local speech-to-text instead of Scribe (faster-whisper, torch, ffmpeg)
-python run.py voice --offline                            # score the transcripts in outputs/voice/ (copied from voice_benchmark/ when empty)
-python tools/build_voice_video.py                        # the 67 s clip (Edge headless + ffmpeg)
+python run.py voice                                      # ElevenLabs text-to-speech + Scribe speech-to-text + redaction, from scratch (ELEVENLABS_API_KEY in .env)
+python tools/scribe_stt.py                               # ElevenLabs Scribe on the saved recordings -> outputs/voice_scribe/
+python tools/whisper_stt.py --model large-v3             # faster-whisper large-v3 on the same recordings -> outputs/voice/ (torch, ffmpeg)
+python run.py voice --offline                            # score outputs/voice/ (copied from voice_benchmark/ when empty); add --subdir voice_scribe for Scribe
+python tools/build_voice_video.py                        # the clip (Edge headless + ffmpeg)
 ```
 
 ## Reproduce
@@ -320,7 +326,8 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
   opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API (gemini-3.5-flash). The demo videos'
   narration is a synthetic voice (Microsoft Edge neural TTS via edge-tts); slides and script were written with Claude Code.
   The voice-channel probe's audio is ElevenLabs text-to-speech (`eleven_multilingual_v2`, via the ElevenLabs connector
-  in Claude Code) reading synthetic customer turns; it was transcribed with faster-whisper large-v3 (open-source Whisper).
+  in Claude Code) reading synthetic customer turns; it was transcribed with ElevenLabs Scribe (`scribe_v1`, API) and
+  with faster-whisper large-v3 (open-source Whisper).
 - **Third-party code:** `pets-eval` evaluation toolkit (Since AI ry, MIT) — used unmodified for all measurements;
   pandas, numpy, scipy, scikit-learn, matplotlib, jsonschema, cryptography (ES256 credentials); faster-whisper /
   CTranslate2 (optional, local speech-to-text); FIWARE Smart Data Models schemas (dataModel.DCAT-AP) and
