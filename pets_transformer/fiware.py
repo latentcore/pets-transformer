@@ -31,6 +31,9 @@ FIWARE Foundation, at the hackathon):
     scopeQ=/health/research/#,/health/public/#  research recipient in a controlled environment: both
     scopeQ=/health/+/+/direct_identifier        every direct identifier and how it was handled, any release
 
+Who the recipient is (layer 3) is checked by `access.py`: a signed data-access credential and a policy enforcement
+point in front of the broker that narrows every query to the scopes the verified trust level allows.
+
     python run.py fiware                                   # dry run: build, validate, write outputs/fiware/
     python run.py fiware --broker https://<broker>         # publish (batch upsert) and read back as a recipient
     python run.py fiware --broker https://<broker> --consume --min-composite 0.85
@@ -296,13 +299,15 @@ def _req(method: str, url: str, body=None, headers: dict | None = None, timeout:
         return ex.code, raw[:500]
 
 
-def _headers(tenant: str | None, ld_body: bool = False) -> dict:
+def _headers(tenant: str | None, ld_body: bool = False, token: str | None = None) -> dict:
     h = {"Accept": "application/json",
          "Link": f'<{SDM_CONTEXT}>; rel="http://www.w3.org/ns/json-ld#context"; type="application/ld+json"'}
     if ld_body:
         h = {"Content-Type": "application/ld+json", "Accept": "application/json"}
     if tenant:
         h["NGSILD-Tenant"] = tenant
+    if token:
+        h["Authorization"] = f"Bearer {token}"
     return h
 
 
@@ -313,19 +318,20 @@ def publish(entities: list[dict], broker: str, tenant: str | None = None) -> dic
     return {"status": status, "response": body, "entities": len(norm)}
 
 
-def query(broker: str, params: dict, tenant: str | None = None) -> tuple[int, list | str]:
+def query(broker: str, params: dict, tenant: str | None = None, token: str | None = None) -> tuple[int, list | str]:
     base = broker.rstrip("/")
     qs = urllib.parse.urlencode({**params, "options": "keyValues"}, safe="=<>!\"")
-    return _req("GET", f"{base}/ngsi-ld/v1/entities?{qs}", headers=_headers(tenant))
+    return _req("GET", f"{base}/ngsi-ld/v1/entities?{qs}", headers=_headers(tenant, token=token))
 
 
-def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None, scope_q: str | None = None) -> list[dict]:
+def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None, scope_q: str | None = None,
+            token: str | None = None) -> list[dict]:
     """The recipient's side: find assessed releases above a composite score (with scope_q: only inside the
     classification the recipient is cleared for), then pull their catalogue entries."""
     params = {"type": "PrivacyAssessment", "q": f"compositeScore>={min_composite}", "limit": 100}
     if scope_q:
         params["scopeQ"] = scope_q
-    status, pas = query(broker, params, tenant)
+    status, pas = query(broker, params, tenant, token)
     if status != 200 or not isinstance(pas, list):
         raise RuntimeError(f"query PrivacyAssessment failed: HTTP {status}: {pas}")
     rows = []
@@ -333,8 +339,8 @@ def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None, 
         ds_id = pa.get("refDataset")
         ds_id = ds_id.get("object") if isinstance(ds_id, dict) else ds_id
         st, ds = _req("GET", f"{broker.rstrip('/')}/ngsi-ld/v1/entities/{urllib.parse.quote(ds_id, safe='')}?options=keyValues",
-                      headers=_headers(tenant))
-        st2, fps = query(broker, {"type": "FieldPolicy", "q": f'refDataset=="{ds_id}"', "limit": 200}, tenant)
+                      headers=_headers(tenant, token=token))
+        st2, fps = query(broker, {"type": "FieldPolicy", "q": f'refDataset=="{ds_id}"', "limit": 200}, tenant, token)
         attacks = pa.get("linkageAttacks") or []
         rows.append({"dataset": (ds or {}).get("title") if isinstance(ds, dict) else ds_id, "scope": pa.get("scope"),
                      "composite": pa.get("compositeScore"), "privacy": pa.get("privacyScore"), "utility": pa.get("utilityScore"),
@@ -400,7 +406,59 @@ ANTARES_JS = """// PETs Transformer -> Antares NGSI-LD broker (browser playgroun
   const di = await (await fetch(`/ngsi-ld/v1/entities?type=FieldPolicy&scopeQ=${enc(dq)}&options=keyValues&limit=100`, {headers: R})).json();
   console.log(`every direct identifier in any release: scopeQ=${dq} -> ${Array.isArray(di) ? di.length : JSON.stringify(di)} field(s)`);
   console.table((Array.isArray(di) ? di : []).map(f => ({field: `${f.table}.${f.column}`, scope: f.scope, action: f.action})));
-  globalThis.__petsTransformerResult = {rows, views, directIdentifiers: di};
+  // Layer 3, who is the recipient? The controller signs a data-access credential (ES256, WebCrypto) per recipient; a policy
+  // enforcement point (PEP) in front of the broker verifies signature and expiry, maps the verified trust level to the scopes
+  // it allows and narrows the recipient's scopeQ to them. Here the PEP is a function in this page; in a deployment it is the
+  // only network path to the broker (FIWARE: Keyrock + Wilma PEP proxy, or VCVerifier + PEP). Same logic as access.py.
+  const POLICY = __POLICY__;
+  const te = new TextEncoder(), td = new TextDecoder();
+  const b64u = b => btoa(String.fromCharCode(...new Uint8Array(b))).split("+").join("-").split("/").join("_").replace(/=+$/, "");
+  const ub64u = x => Uint8Array.from(atob(x.split("-").join("+").split("_").join("/")), c => c.charCodeAt(0));
+  const EC = {name: "ECDSA", namedCurve: "P-256"}, SIG = {name: "ECDSA", hash: "SHA-256"};
+  const issuer = await crypto.subtle.generateKey(EC, false, ["sign", "verify"]);
+  const stranger = await crypto.subtle.generateKey(EC, false, ["sign", "verify"]);
+  const claims = (sub, trust, ttl = 3600) => { const t = Math.floor(Date.now() / 1000);
+    return {iss: "did:example:data-controller", sub, iat: t, exp: t + ttl, vc: {type: ["VerifiableCredential", "DataAccessCredential"],
+            credentialSubject: {id: sub, trustLevel: trust}}}; };
+  const sign = async (key, c) => { const h = b64u(te.encode(JSON.stringify({alg: "ES256", typ: "vc+jwt"}))), b = b64u(te.encode(JSON.stringify(c)));
+    return `${h}.${b}.${b64u(await crypto.subtle.sign(SIG, key.privateKey, te.encode(h + "." + b)))}`; };
+  const verify = async tok => { const [h, b, g] = (tok || "").split(".");
+    if (!g) throw "401 no credential";
+    if (!await crypto.subtle.verify(SIG, issuer.publicKey, ub64u(g), te.encode(h + "." + b))) throw "401 signature invalid (edited credential or unknown issuer)";
+    const c = JSON.parse(td.decode(ub64u(b)));
+    if (c.exp < Date.now() / 1000) throw "401 credential expired";
+    return c; };
+  const parse = x => { const sg = x.trim().split("/").filter(v => v.length); const hs = sg.length > 0 && sg[sg.length - 1] === "#"; return [hs ? sg.slice(0, -1) : sg, hs]; };
+  const meet = (a, b) => { const [sa, ha] = parse(a), [sb, hb] = parse(b); const out = [];
+    for (let i = 0; i < Math.min(sa.length, sb.length); i++) { const x = sa[i], y = sb[i];
+      if (x === "+") out.push(y); else if (y === "+" || x === y) out.push(x); else return null; }
+    const ra = sa.slice(out.length), rb = sb.slice(out.length); let tail;
+    if (!ra.length && !rb.length) tail = ha && hb;
+    else if (ra.length) { if (!hb) return null; out.push(...ra); tail = ha; }
+    else { if (!ha) return null; out.push(...rb); tail = hb; }
+    return "/" + [...out, ...(tail ? ["#"] : [])].join("/"); };
+  const pep = async (tok, type, asked) => { let c; try { c = await verify(tok); } catch (e) { return {decision: String(e)}; }
+    const allowed = POLICY[c.vc.credentialSubject.trustLevel] || [];
+    const eff = [...new Set((asked ? asked.split(",") : allowed).flatMap(r => allowed.map(a => meet(r, a)).filter(Boolean)))];
+    if (!eff.length) return {decision: `403 ${asked} is outside trust level ${c.vc.credentialSubject.trustLevel}`};
+    const got = await (await fetch(`/ngsi-ld/v1/entities?type=${type}&scopeQ=${enc(eff.join(","))}&options=keyValues&limit=100`, {headers: R})).json();
+    return {decision: `200, PEP sent scopeQ=${eff.join(",")}`, entities: got.length, scopes: [...new Set(got.map(e => e.scope))].join(" ")}; };
+  const pubCred = await sign(issuer, claims("did:example:dashboard-viewer", "public"));
+  const resCred = await sign(issuer, claims("did:example:research-team", "controlled_research"));
+  const [ph, , pg] = pubCred.split(".");
+  const edited = `${ph}.${b64u(te.encode(JSON.stringify(claims("did:example:dashboard-viewer", "controlled_research"))))}.${pg}`;
+  const cases = [["no credential", null, "PrivacyAssessment", null], ["public credential", pubCred, "PrivacyAssessment", null],
+    ["research credential", resCred, "PrivacyAssessment", null], ["public credential asks for research data", pubCred, "PrivacyAssessment", "/health/research/#"],
+    ["public credential edited to say research", edited, "PrivacyAssessment", null],
+    ["expired research credential", await sign(issuer, claims("did:example:research-team", "controlled_research", -60)), "PrivacyAssessment", null],
+    ["research credential from an unknown issuer", await sign(stranger, claims("did:example:research-team", "controlled_research")), "PrivacyAssessment", null],
+    ["research credential, every direct identifier", resCred, "FieldPolicy", "/health/+/+/direct_identifier"],
+    ["public credential, every direct identifier", pubCred, "FieldPolicy", "/health/+/+/direct_identifier"]];
+  const access = [];
+  for (const [who, tok, type, asked] of cases) access.push({recipient: who, type, asked: asked || "(nothing: PEP decides)", ...(await pep(tok, type, asked))});
+  console.log("layer 3: signed credential + policy enforcement point in front of the broker");
+  console.table(access);
+  globalThis.__petsTransformerResult = {rows, views, directIdentifiers: di, access};
   return rows;
 })();
 """
@@ -411,6 +469,7 @@ def antares_snippet(entities: list[dict], tenant: str = "pets-transformer", min_
     ctx = [inline_sdm_context(entities), CORE_CONTEXT_V19]
     return (ANTARES_JS.replace("__TENANT__", json.dumps(tenant)).replace("__MIN__", json.dumps(min_composite))
             .replace("__CTX__", json.dumps(ctx, separators=(",", ":"))).replace("__VIEWS__", json.dumps(SCOPE_VIEWS))
+            .replace("__POLICY__", json.dumps(__import__("pets_transformer.access", fromlist=["POLICY"]).POLICY))
             .replace("__ENTITIES__", json.dumps(norm, ensure_ascii=False, separators=(",", ":"))))
 
 
