@@ -48,7 +48,7 @@ Risk before and after, HEALTH-S1 `ed_visits` (46 398 visits), measured by `pets-
 |---|---|---|
 | 1 Detect | Classifies every column by **values first, names second**: check-digit validators (HETU, IBAN, Luhn cards), formats (IP, MAC, plates, postcodes, coordinates, timestamps, dates of birth), gazetteers built only from the *public* attacker files (names, streets, municipalities), statistics (cardinality, length, token shape), and whether the table is a *person table* or an *event table*. Optional second opinion from a local LLM (Ollama) or the Gemini API for low-confidence columns. | `pets-eval detect` against the field catalog. Rules were tuned on 3 datasets; **6 datasets were held out**. The unlabelled `unseen` export (26 obfuscated columns) is labelled and submitted for organiser scoring. |
 | 2 Select | A policy maps (role, subtype, scenario needs) → action: keyed pseudonym (HMAC-SHA256), age band, timestamp rounding, postcode prefix, code truncation, rare-category merging, free-text redaction, drop. Every decision carries a reason. | `decisions.json` per release; shown in the HTML report. |
-| 3 Transform | Produces the protected tables, local suppression to k ≥ 5 on the catalogued quasi-identifiers, shuffled rows, row maps for scoring only. | Reproducible with one command. |
+| 3 Transform | Produces the protected tables, local suppression to k ≥ 5 on the released quasi-identifiers municipality and arrival time (see Limitations for the age band), shuffled rows, row maps for scoring only. | Reproducible with one command. |
 | 4 Demonstrate | `pets-eval scorecard`: linkage attacks with the shipped attacker knowledge, k-anonymity, hash reversal, free-text leakage; utility tasks of the scenario (medians, mixes, revisit rates, joins, hour curves, model AUC). Plus a **frontier search**: ~80 policies scored, Pareto front drawn, chosen point and baselines marked. | privacy / utility / composite per release, frontier chart. |
 | 5 Scenario | One of the 27 sharing scenarios (recipient, purpose, trust level, threat model) is chosen up front; the report states which questions the recipient can still answer and which risks remain. | report section "What remains, honestly". |
 
@@ -229,6 +229,11 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
 - The HMAC key is a fixed demo constant. In production it lives in the controller's vault.
 - Only HEALTH-S1 was searched end to end in the time available; the engine is generic and other scenarios run through
   the same commands, but their policies were not tuned.
+- k ≥ 5 holds on the quasi-identifiers the scorecard checks in this release (municipality, arrival week: smallest group
+  5). The scenario's suggested target also includes the age band; with it, 28 % of visits are in groups smaller than 5
+  (smallest 1). The three linkage attacks, which use age, still re-identify 0 %, but that target is not met yet.
+- HEALTH-S2 suggests ε ≤ 1 per weekly release. Our default is one release of the whole year at ε = 3.2 in total; the
+  sweep shows the price of a stricter budget (ε = 0.8 in total: utility 0.47).
 - The FIWARE layer publishes catalogue metadata and scores, not data. It ran live on the Antares broker's in-browser
   build; the Python HTTP publisher (`--broker`) is tested against a test double only, because the build laptop has no
   Docker or Linux to host a broker server. Custom entity types
@@ -243,7 +248,7 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
   opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API (gemini-3.5-flash). The demo video's
   narration is a synthetic voice (Microsoft Edge neural TTS via edge-tts); slides and script were written with Claude Code.
 - **Third-party code:** `pets-eval` evaluation toolkit (Since AI ry, MIT) — used unmodified for all measurements;
-  pandas, numpy, scipy, scikit-learn, matplotlib, jsonschema; FIWARE Smart Data Models schemas (dataModel.DCAT-AP) and
+  pandas, numpy, scipy, scikit-learn, matplotlib, jsonschema, cryptography (ES256 credentials); FIWARE Smart Data Models schemas (dataModel.DCAT-AP) and
   the ETSI NGSI-LD core context. Everything in `pets_transformer/` was written during the hackathon.
 - **Data:** only the synthetic Proving Ground package and its public attacker files. No real personal data.
 

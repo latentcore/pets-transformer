@@ -59,9 +59,10 @@ def build(releases: list[tuple[str, str, str]], out: Path | None = None) -> Path
         for f in ("decisions.json", "scorecard.json", "scorecard.html", "summary.json"):
             if (src / f).exists():
                 shutil.copy(src / f, dst / f)
-        (dst / "README.md").write_text(f"# {ds} — {scen} ({variant})\n\nProtected release produced by PETs Transformer. "
-                                       f"`rowmap_*.csv` map protected rows to original record ids for scoring only.\n",
+        note = ("`rowmap_*.csv` map protected rows to original record ids for scoring only." if any(dst.glob("rowmap_*.csv"))
+                else "No row map: the rows are synthetic (differentially private release); `dp_answers.csv` answers the DP workload.")
+        (dst / "README.md").write_text(f"# {ds} — {scen} ({variant})\n\nProtected release produced by PETs Transformer. {note}\n",
                                        encoding="utf-8", newline="\n")
-    manifest = {"releases": releases, "files": sorted(str(p.relative_to(out)) for p in out.rglob("*") if p.is_file())}
+    manifest = {"releases": releases, "files": sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file())}
     (out / "MANIFEST.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8", newline="\n")
     return out
