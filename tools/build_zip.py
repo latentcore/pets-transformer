@@ -17,13 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "outputs" / "pets_transformer_source.zip"
 SUB = ROOT / "pets_submission"
 LIMIT = 100 * 1024 * 1024  # form limit
+# the author's personal working notes (Turkish) stay out of the organisers' zip
+PERSONAL = {"DURUM.md", "docs/MERT_CHECKLIST.md", "docs/MESSAGES.md", "docs/CALISMA_SUNUM_INGILIZCE.md"}
 
 
 def main() -> int:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     if OUT.exists():
         OUT.unlink()
-    subprocess.run(["git", "archive", "--format=zip", "-o", str(OUT), "HEAD"], cwd=ROOT, check=True)
+    tmp = OUT.with_suffix(".git.zip")
+    subprocess.run(["git", "archive", "--format=zip", "-o", str(tmp), "HEAD"], cwd=ROOT, check=True)
+    with zipfile.ZipFile(tmp) as src, zipfile.ZipFile(OUT, "w", compression=zipfile.ZIP_DEFLATED) as dst:
+        for info in src.infolist():
+            if info.filename not in PERSONAL:
+                dst.writestr(info, src.read(info))
+    tmp.unlink()
     added = 0
     if SUB.is_dir():
         with zipfile.ZipFile(OUT, "a", compression=zipfile.ZIP_DEFLATED) as z:
@@ -35,7 +43,7 @@ def main() -> int:
         print("WARNING: pets_submission/ missing - run `python run.py submission ...` first", file=sys.stderr)
     with zipfile.ZipFile(OUT) as z:
         names = z.namelist()
-    bad = [n for n in names if n.endswith(".env") or n.startswith(("materials/", "outputs/", ".venv/"))]
+    bad = [n for n in names if n.endswith(".env") or n.startswith(("materials/", "outputs/", ".venv/")) or n in PERSONAL]
     rowmaps_outside = [n for n in names if "rowmap_" in n and not n.startswith("pets_submission/")]
     size = OUT.stat().st_size
     print(f"{OUT.relative_to(ROOT)}: {size:,} bytes, {len(names)} entries ({added} from pets_submission/)")
