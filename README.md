@@ -12,6 +12,29 @@ Everything below is measured with the organisers' `pets-eval` toolkit on the syn
 (nine domains, 4.7 M rows, 475 catalogued columns, 354 000 labelled PII spans, attacker files with ground truth).
 Self-assessment scores are not the official judging score.
 
+## The TrustED checklist, answered with evidence
+
+The organisers asked every team to show five things (Discord, 7 Nov). Where each one is:
+
+| TrustED asks for | What we show | Evidence (HEALTH-S1 unless stated) |
+|---|---|---|
+| Identified data types and privacy risks | Every column labelled by role and subtype from its values; the risk measured on the *original* data before anything is changed | 98.1 % of visits are unique on (municipality, arrival time); the three shipped linkage attacks re-identify **18.5 % / 54.2 % / 57.0 %** of their targets in the original table; detector held-out macro-F1 0.74, 94 % of sensitive columns found |
+| Selected PETs and the reasoning | One action per field with a written reason, chosen from the scenario's needs | `decisions.json`: 38 field decisions (keyed pseudonym, age band, week rounding, ICD-10 truncation, k ≥ 5 suppression, drop…), also published as `FieldPolicy` entities on the FIWARE broker |
+| The transformed / protected output | Protected tables for HEALTH-S1, a differentially private release for HEALTH-S2, redacted free text | `pets_submission/` in the source zip (row maps for scoring only, never published) |
+| Measurable privacy and utility results | `pets-eval` scorecard before/after, the frontier of 81 policies | privacy **1.00**, utility **0.80**, composite **0.90** vs organisers' baselines ≈0.48; attacks **0 %** after; DP release ε = 3.2 → utility 0.61 |
+| A defined data-sharing scenario and remaining limitations | Recipient, purpose, trust level and threat model stated up front; what was sacrificed and what risk remains said plainly | HEALTH-S1: university research group, controlled environment; hour-of-day curve (H-U8) sacrificed, shown on the frontier; [Limitations](#limitations-stated-plainly) |
+
+Risk before and after, HEALTH-S1 `ed_visits` (46 398 visits), measured by `pets-eval scorecard`:
+
+| Measure | Original table | Protected release |
+|---|---|---|
+| Re-identified by `news_clips_health` attacker (200 targets) | 18.5 % | **0 %** |
+| Re-identified by `social_posts_health` attacker (850 targets) | 54.2 % | **0 %** |
+| Re-identified by `public_directory` attacker (739 targets) | 57.0 % | **0 %** |
+| Visits unique on (municipality, arrival time) | 98.1 % | **0 %** (smallest group 5, median 75) |
+| Direct identifiers (national ID, name, phone, address) | present | removed or keyed pseudonym |
+| Utility tasks answered (H-U2, H-U4, H-U6, H-U7) | – | 4 of 4 at score 1.00; H-U8 hour curve sacrificed |
+
 ## What it does (the five things the brief asks for)
 
 | Step | What the tool does | How it is measured |
@@ -87,11 +110,37 @@ Free-text redaction (`pets-eval text`, overlap F2 / identifying-value leakage):
 | health / clinical_notes.note_text (fi, sv, en) | 30 103 | 0.97 | 0.01 % |
 | customer_service / turns.text (train split) | 26 000+ | 0.87 | 0.7 % |
 
+## FIWARE: the context broker as a catalogue of privacy-assessed releases
+
+A protected release is only useful if the recipient can find it and judge it before asking for access. PETs
+Transformer publishes each release to an **NGSI-LD context broker** as linked entities, never the rows:
+
+| NGSI-LD entity | Model | What it carries |
+|---|---|---|
+| `Dataset` | Smart Data Model **DCAT-AP Dataset** | title, description, keywords, applicable legislation (GDPR Art. 9 / Recital 26), temporal resolution, provenance, distributions |
+| `Distribution` | Smart Data Model **DCAT-AP Distribution** | one per released file (format, size, where it is delivered) → `belongsToDataset` |
+| `DataSharingScenario` | NGSI-LD default context | recipient, purpose, trust level, threat model, legal context, required analyses |
+| `PrivacyAssessment` | NGSI-LD default context | pets-eval privacy / utility / composite, each linkage attack before → after, k-anonymity, utility tasks, sacrificed tasks, DP budget → `refDataset`, `refScenario` |
+| `FieldPolicy` | NGSI-LD default context | one per source column: role, subtype, PET applied, reason → `refDataset` |
+
+The controller writes them with one batch upsert; the recipient side queries the broker, e.g. "every
+`PrivacyAssessment` with `compositeScore >= 0.85`", follows `refDataset` to the DCAT-AP catalogue entry and reads
+the `FieldPolicy` entities to see which technique was applied to which field and why. The DCAT-AP entities are validated
+against the official Smart Data Models JSON schemas before publishing (the check catches a missing title, a wrong type
+or a malformed date; it passes for all 48 entities of the two releases).
+
+```bash
+python run.py fiware                                        # dry run: 48 entities, schema validation, outputs/fiware/
+python run.py fiware --broker https://<ngsi-ld-broker>      # batch upsert + recipient-side query
+python run.py fiware --broker https://<ngsi-ld-broker> --consume --min-composite 0.85
+python tools/ngsi_ld_mock.py --selftest                     # offline smoke test of the publish/query code (a test double, not FIWARE)
+```
+
 ## Reproduce
 
 ```bash
 pip install -e materials/PROVING_GROUND/TRUSTED_PETS_PROVING_GROUND_2026/toolkit   # pets-eval (MIT, Since AI ry)
-pip install numpy pandas scipy scikit-learn matplotlib
+pip install numpy pandas scipy scikit-learn matplotlib jsonschema rfc3339-validator
 python run.py detect --dataset all                       # field classification + scores
 python run.py detect --dataset all --llm gemini          # optional second opinion (GEMINI_API_KEY in .env) or --llm ollama
 python run.py protect --dataset health --scenario HEALTH-S1 --variant week --time-res week
@@ -101,12 +150,16 @@ python run.py redact  --dataset health --table clinical_notes --column note_text
 python run.py redact  --dataset customer_service --table turns --column text
 python run.py report  --dataset health --scenario HEALTH-S1 --variant week    # HTML report
 python run.py dp --variant dp_eps3 && python run.py dp --sweep                  # HEALTH-S2 DP release + ε curve
-python run.py submission --release health:HEALTH-S1:week --release health:HEALTH-S2:dp_eps3   # pets_submission/
+python run.py submission --release health:HEALTH-S1:week --release health:HEALTH-S2:dp_eps3   # pets_submission/ (organisers only)
+python run.py fiware                                                            # NGSI-LD catalogue entities (see above)
 python tools/build_video.py                                                     # demo video (Edge headless + edge-tts + ffmpeg)
+python tools/build_zip.py                                                       # source zip for the submission form
 ```
 
 The proving-ground package is team-only material and is not in this repository (`materials/` is git-ignored);
-set `PETS_ROOT` to its location. Outputs go to `outputs/` (git-ignored: they contain row maps).
+set `PETS_ROOT` to its location. Outputs go to `outputs/` (git-ignored: they contain row maps). The organiser folder
+`pets_submission/` is git-ignored too: it holds the row maps (`rowmap_*.csv`, scoring only, never published) and our
+outputs on the organisers' unseen data, so it travels only inside the source zip.
 
 ## Limitations, stated plainly
 
@@ -119,15 +172,20 @@ set `PETS_ROOT` to its location. Outputs go to `outputs/` (git-ignored: they con
 - The HMAC key is a fixed demo constant. In production it lives in the controller's vault.
 - Only HEALTH-S1 was searched end to end in the time available; the engine is generic and other scenarios run through
   the same commands, but their policies were not tuned.
+- The FIWARE layer publishes catalogue metadata and scores, not data. Its publish/query code is tested offline against
+  a test double; the live run needs a reachable NGSI-LD broker (no Docker on the build laptop). Custom entity types
+  (`PrivacyAssessment`, `FieldPolicy`, `DataSharingScenario`) use the NGSI-LD default context rather than a published
+  Smart Data Model.
 
 ## Declarations
 
-- **AI tools:** Claude Code (Claude Fable 5.1) wrote most of the code and this text under the author's direction; the
+- **AI tools:** Claude Code (Claude Fable 5.1, later Claude Opus 5.5) wrote most of the code and this text under the author's direction; the
   author set goals, chose the challenge, approved the plan, verified results and runs the demo. Optional LLM second
   opinion in the detector uses Ollama (qwen3:8b, local) or the Gemini API (gemini-3.5-flash). The demo video's
   narration is a synthetic voice (Microsoft Edge neural TTS via edge-tts); slides and script were written with Claude Code.
 - **Third-party code:** `pets-eval` evaluation toolkit (Since AI ry, MIT) — used unmodified for all measurements;
-  pandas, numpy, scipy, scikit-learn, matplotlib. Everything in `pets_transformer/` was written during the hackathon.
+  pandas, numpy, scipy, scikit-learn, matplotlib, jsonschema; FIWARE Smart Data Models schemas (dataModel.DCAT-AP) and
+  the ETSI NGSI-LD core context. Everything in `pets_transformer/` was written during the hackathon.
 - **Data:** only the synthetic Proving Ground package and its public attacker files. No real personal data.
 
 ## Licence

@@ -258,9 +258,21 @@ def cmd_report(a):
     print(f"wrote {path}")
 
 
+def cmd_fiware(a):
+    from pets_transformer import fiware
+    fiware.run(a.release, a.broker, a.tenant, a.consume, a.min_composite)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
+    fw = sub.add_parser("fiware", help="publish privacy-assessed releases as NGSI-LD entities (Smart Data Models DCAT-AP)")
+    fw.add_argument("--release", action="append", default=None, help="dataset:scenario:variant (default: health S1 week + S2 dp_eps3)")
+    fw.add_argument("--broker", default=None, help="NGSI-LD broker base URL (or env NGSI_LD_BROKER); omit for a dry run")
+    fw.add_argument("--tenant", default=None, help="NGSILD-Tenant header")
+    fw.add_argument("--consume", action="store_true", help="only run the recipient-side query")
+    fw.add_argument("--min-composite", type=float, default=0.0)
+    fw.set_defaults(fn=cmd_fiware)
     dpp = sub.add_parser("dp", help="differentially private public release for HEALTH-S2")
     dpp.add_argument("--variant", default="dp_eps3")
     dpp.add_argument("--eps-hist", type=float, default=1.0)
