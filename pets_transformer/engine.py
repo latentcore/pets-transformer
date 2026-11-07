@@ -33,7 +33,8 @@ class Policy:
     code_chars: int = 3               # ICD-10 and similar codes truncated to this many characters
     rare_min: int = 20                # categorical QI values rarer than this -> "other"
     k: int = 5                        # local suppression target on catalogued quasi-identifiers (1 = none)
-    suppress_order: str = "categorical_first"  # categorical_first | time_first: which QI to blank first
+    suppress_order: str = "categorical_first"  # categorical_first | time_first | age_first: which QI to blank first
+    k_extra_qis: tuple = ()           # output columns also held to k (e.g. ("age",): the age band derived from a birth date)
     keep_qi_categoricals: bool = False  # keep QI categoricals (sex, arrival_mode) the tasks do not need
     text: str = "drop"                # drop | keep | redact (redact uses pets_transformer.redact)
     measure_round: Optional[float] = None  # round numerical sensitive attributes to this step
@@ -235,7 +236,9 @@ def protect(domain: str, tables: dict, labels: pd.DataFrame, pol: Policy) -> dic
         p = pd.DataFrame(new, index=df.index)
         cat_first = ["arrival_mode", "ambulance_unit", "sex", "language", "municipality", "postcode"]
         time_cols = ["arrival_ts", "sampled_ts", "written_ts", "discharge_ts", "ts", "started_ts", "ts_created"]
-        order = cat_first + time_cols if pol.suppress_order == "categorical_first" else time_cols + cat_first
+        order = {"categorical_first": cat_first + time_cols, "time_first": time_cols + cat_first,
+                 "age_first": ["age"] + cat_first + time_cols}[pol.suppress_order]
+        qi_kept += [c for c in pol.k_extra_qis if c in p.columns and c not in qi_kept]
         if pol.k > 1:
             p = local_suppression(p, qi_kept, pol.k, order=order, log=log)
         else:

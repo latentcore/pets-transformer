@@ -231,7 +231,12 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
   the same commands, but their policies were not tuned.
 - k ≥ 5 holds on the quasi-identifiers the scorecard checks in this release (municipality, arrival week: smallest group
   5). The scenario's suggested target also includes the age band; with it, 28 % of visits are in groups smaller than 5
-  (smallest 1). The three linkage attacks, which use age, still re-identify 0 %, but that target is not met yet.
+  (smallest 1). The three linkage attacks, which use age, still re-identify 0 %, but that target is not met by the
+  submitted release. (pets-eval's k check only counts catalogued column names, and the age band is released as `age`.)
+  Measured fix (Saturday night, not the submitted release): holding the age band to k ≥ 5 as well and blanking it first
+  (`--k-include-age --suppress-order age_first`) meets the full target (smallest group 5 on age band, municipality and
+  week) with privacy 1.00, utility 0.79, composite 0.891 and all three attacks at 0 %; blanking the municipality first
+  instead costs more (composite 0.864), and 20-year age bands more still (0.759).
 - HEALTH-S2 suggests ε ≤ 1 per weekly release. Our default is one release of the whole year at ε = 3.2 in total; the
   sweep shows the price of a stricter budget (ε = 0.8 in total: utility 0.47).
 - The FIWARE layer publishes catalogue metadata and scores, not data. It ran live on the Antares broker's in-browser

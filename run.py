@@ -31,7 +31,8 @@ def cmd_protect(a):
         labels = pd.read_csv(a.labels, dtype=str).fillna("")
     tables = io.load_tables(root / "data" / domain)
     pol = engine.Policy(time_res=a.time_res, age_band=a.age_band, code_chars=a.code_chars, rare_min=a.rare_min,
-                        k=a.k, keep_qi_categoricals=a.keep_qi_cats, text=a.text,
+                        k=a.k, keep_qi_categoricals=a.keep_qi_cats, text=a.text, suppress_order=a.suppress_order,
+                        k_extra_qis=("age",) if a.k_include_age else (),
                         needs=scenarios.needs_for(a.scenario, root))
     t0 = time.time()
     res = engine.protect(domain, tables, labels, pol)
@@ -321,6 +322,8 @@ def main(argv=None):
     p.add_argument("--rare-min", type=int, default=20)
     p.add_argument("--k", type=int, default=5)
     p.add_argument("--keep-qi-cats", action="store_true")
+    p.add_argument("--suppress-order", default="categorical_first", choices=["categorical_first", "time_first", "age_first"])
+    p.add_argument("--k-include-age", action="store_true", help="hold the derived age band to k as well (scenario target)")
     p.add_argument("--text", default="drop", choices=["drop", "keep", "redact"])
     p.set_defaults(fn=cmd_protect)
     a = ap.parse_args(argv)
