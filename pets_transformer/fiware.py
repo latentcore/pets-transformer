@@ -191,15 +191,30 @@ def build(releases: list[str] | None = None) -> list[dict]:
     return out
 
 
-def normalise(e: dict) -> dict:
-    """keyValues -> NGSI-LD normalised form with @context."""
+def normalise(e: dict, context=None) -> dict:
+    """keyValues -> NGSI-LD normalised form with @context (context=False: leave it out)."""
     out = {"id": e["id"], "type": e["type"]}
     for k, v in e.items():
         if k in ("id", "type"):
             continue
         out[k] = {"type": "Relationship", "object": v} if k in RELATIONSHIPS else {"type": "Property", "value": v}
-    out["@context"] = CONTEXT
+    if context is not False:
+        out["@context"] = CONTEXT if context is None else context
     return out
+
+
+CORE_CONTEXT_V19 = "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld"
+
+
+def inline_sdm_context(entities: list[dict]) -> dict:
+    """The official DCAT-AP Smart Data Models context, cut to the terms our Dataset/Distribution entities use
+    (same IRIs). For brokers that cannot fetch remote @context documents, e.g. the in-browser Antares build."""
+    full = _fetch_json(SDM_CONTEXT, outputs_dir() / "fiware" / "schema_cache")["@context"]
+    used = {"Dataset", "Distribution"}
+    for e in entities:
+        if e["type"] in ("Dataset", "Distribution"):
+            used |= set(e) - {"id", "type", "@context"}
+    return {k: full[k] for k in sorted(used) if k in full}
 
 
 # ----------------------------------------------------------------------------------------------- validation
@@ -299,6 +314,54 @@ def consume(broker: str, min_composite: float = 0.0, tenant: str | None = None) 
     return rows
 
 
+# ----------------------------------------------------------------------------------------------- Antares playground
+ANTARES_JS = """// PETs Transformer -> Antares NGSI-LD broker (browser playground, https://antaresbroker.joinedcontext.com/demo/)
+// Paste into the DevTools console of that page. The broker runs inside the page (WebAssembly); nothing leaves the browser.
+// The in-browser broker cannot fetch remote @context documents, so the DCAT-AP Smart Data Models terms we use are inlined
+// (same IRIs as the official context) next to the NGSI-LD core context v1.9.
+(async () => {
+  const T = __TENANT__, MIN = __MIN__;
+  const CTX = __CTX__;
+  const ENTITIES = __ENTITIES__.map(e => ({...e, "@context": CTX}));
+  const W = {"Content-Type": "application/ld+json", "NGSILD-Tenant": T};
+  const R = {"Accept": "application/json", "NGSILD-Tenant": T};
+  const pick = (o, k, iri) => (o && (o[k] ?? o[iri]));
+  const up = await fetch("/ngsi-ld/v1/entityOperations/upsert?options=update", {method: "POST", headers: W, body: JSON.stringify(ENTITIES)});
+  console.log(`controller: batch upsert of ${ENTITIES.length} entities into tenant "${T}" -> HTTP ${up.status}`, up.status >= 300 ? await up.text() : "");
+  const enc = encodeURIComponent;
+  const pas = await (await fetch(`/ngsi-ld/v1/entities?type=PrivacyAssessment&q=${enc("compositeScore>=" + MIN)}&options=keyValues&limit=100`, {headers: R})).json();
+  const rows = [];
+  for (const pa of pas) {
+    const dsId = typeof pa.refDataset === "object" ? pa.refDataset.object : pa.refDataset;
+    const ds = await (await fetch(`/ngsi-ld/v1/entities/${enc(dsId)}?options=keyValues`, {headers: R})).json();
+    const fps = await (await fetch(`/ngsi-ld/v1/entities?type=FieldPolicy&q=${enc('refDataset=="' + dsId + '"')}&options=keyValues&limit=100`, {headers: R})).json();
+    const atk = pa.linkageAttacks || [];
+    rows.push({dataset: pick(ds, "title", "http://purl.org/dc/terms/title"), composite: pa.compositeScore, privacy: pa.privacyScore, utility: pa.utilityScore,
+               worstAttackBefore: Math.max(0, ...atk.map(a => a.reidentificationRateOriginal || 0)),
+               worstAttackAfter: Math.max(0, ...atk.map(a => a.reidentificationRateReleased || 0)),
+               sacrificed: (pa.sacrificedTasks || []).join(", "), fieldPolicies: Array.isArray(fps) ? fps.length : fps,
+               distributions: (pick(ds, "distribution", "https://smartdatamodels.org/dataModel.DCAT-AP/distribution") || []).length});
+  }
+  console.log(`recipient: PrivacyAssessment with compositeScore >= ${MIN} -> ${rows.length} release(s)`);
+  console.table(rows);
+  if (rows.length && Array.isArray(rows)) {
+    const ex = await (await fetch(`/ngsi-ld/v1/entities?type=FieldPolicy&q=${enc('column=="date_of_birth"')}&options=keyValues`, {headers: R})).json();
+    console.log("why was date_of_birth protected?", ex.map(f => `${f.table}.${f.column}: ${f.action} - ${f.reason}`));
+  }
+  globalThis.__petsTransformerResult = rows;
+  return rows;
+})();
+"""
+
+
+def antares_snippet(entities: list[dict], tenant: str = "pets-transformer", min_composite: float = 0.85) -> str:
+    norm = [normalise(e, context=False) for e in entities]
+    ctx = [inline_sdm_context(entities), CORE_CONTEXT_V19]
+    return (ANTARES_JS.replace("__TENANT__", json.dumps(tenant)).replace("__MIN__", json.dumps(min_composite))
+            .replace("__CTX__", json.dumps(ctx, separators=(",", ":")))
+            .replace("__ENTITIES__", json.dumps(norm, ensure_ascii=False, separators=(",", ":"))))
+
+
 # ----------------------------------------------------------------------------------------------- command
 def run(releases: list[str] | None, broker: str | None, tenant: str | None, consume_only: bool, min_composite: float) -> dict:
     out = outputs_dir() / "fiware"
@@ -320,6 +383,9 @@ def run(releases: list[str] | None, broker: str | None, tenant: str | None, cons
         for err in rep["errors"][:10]:
             print("  ", err)
         result.update(entities=len(ents), types=counts, valid=rep["valid"])
+        js = out / "antares_console.js"
+        js.write_text(antares_snippet(ents, tenant or "pets-transformer", min_composite or 0.85), encoding="utf-8", newline="\n")
+        print(f"Antares playground snippet: {js} (paste into the console of https://antaresbroker.joinedcontext.com/demo/)")
         if broker:
             pub = publish(ents, broker, tenant)
             print(f"upsert to {broker}: HTTP {pub['status']} ({pub['entities']} entities)")

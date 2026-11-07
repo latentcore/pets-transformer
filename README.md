@@ -129,8 +129,18 @@ the `FieldPolicy` entities to see which technique was applied to which field and
 against the official Smart Data Models JSON schemas before publishing (the check catches a missing title, a wrong type
 or a malformed date; it passes for all 48 entities of the two releases).
 
+**Live run on a FIWARE broker (Saturday 7 Nov):** the Antares NGSI-LD context broker (Rust, ETSI CIM 009 V1.9.1,
+the live demo broker linked from the FIWARE award page) running in its browser playground: batch upsert of all 48
+entities → HTTP 201; the recipient query `PrivacyAssessment` with `compositeScore >= 0.85` returned the HEALTH-S1
+release (composite 0.898, worst linkage attack 0.57 → 0, sacrificed H-U8) with its 38 field policies and 2
+distributions, and `FieldPolicy` with `column == "date_of_birth"` answered "age_band — birth date → age at event in
+10-year bands". The in-browser broker cannot fetch remote `@context` documents, so for it the DCAT-AP terms we use are
+inlined with the same IRIs as the official context, next to the NGSI-LD core context v1.9.
+
 ```bash
 python run.py fiware                                        # dry run: 48 entities, schema validation, outputs/fiware/
+                                                            #   + outputs/fiware/antares_console.js: paste into the console of
+                                                            #     https://antaresbroker.joinedcontext.com/demo/ (publish + recipient query)
 python run.py fiware --broker https://<ngsi-ld-broker>      # batch upsert + recipient-side query
 python run.py fiware --broker https://<ngsi-ld-broker> --consume --min-composite 0.85
 python tools/ngsi_ld_mock.py --selftest                     # offline smoke test of the publish/query code (a test double, not FIWARE)
@@ -172,8 +182,9 @@ outputs on the organisers' unseen data, so it travels only inside the source zip
 - The HMAC key is a fixed demo constant. In production it lives in the controller's vault.
 - Only HEALTH-S1 was searched end to end in the time available; the engine is generic and other scenarios run through
   the same commands, but their policies were not tuned.
-- The FIWARE layer publishes catalogue metadata and scores, not data. Its publish/query code is tested offline against
-  a test double; the live run needs a reachable NGSI-LD broker (no Docker on the build laptop). Custom entity types
+- The FIWARE layer publishes catalogue metadata and scores, not data. It ran live on the Antares broker's in-browser
+  build; the Python HTTP publisher (`--broker`) is tested against a test double only, because the build laptop has no
+  Docker or Linux to host a broker server. Custom entity types
   (`PrivacyAssessment`, `FieldPolicy`, `DataSharingScenario`) use the NGSI-LD default context rather than a published
   Smart Data Model.
 

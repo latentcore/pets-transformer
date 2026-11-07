@@ -47,7 +47,7 @@ def extra_slides() -> list[tuple[str, str]]:
 <div class='tile'><div class='v b' style='font-size:30px'>Distribution</div><div class='l'>DCAT-AP, one per file<br>→ belongsToDataset</div></div>
 <div class='tile'><div class='v g' style='font-size:30px'>PrivacyAssessment</div><div class='l'>scores, each attack before → after<br>→ refDataset, refScenario</div></div>
 <div class='tile'><div class='v y' style='font-size:30px'>FieldPolicy</div><div class='l'>one per column: PET + reason<br>→ refDataset</div></div></div>
-<p>The controller publishes <b>the catalogue, never the rows</b> (NGSI-LD batch upsert, 48 entities for two releases, DCAT-AP validated against the official schemas).</p>
+<p>The controller publishes <b>the catalogue, never the rows</b>: NGSI-LD batch upsert of 48 entities for two releases, DCAT-AP validated against the official schemas, <b>running live on the Antares broker</b>.</p>
 <p>The recipient asks the broker: <code>type=PrivacyAssessment &amp; q=compositeScore&gt;=0.85</code> → follows <code>refDataset</code> → reads why each field was protected.</p>""",
                                     "FIWARE NGSI-LD + Smart Data Models")))
     return out
